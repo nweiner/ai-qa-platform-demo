@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI QA Automation Platform — Demo</title>
+<!-- DOMPurify: every dynamic DOM write is sanitized (see setHTML) -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<style>
+  :root{
+    --primary:#1677ff; --primary-hover:#4096ff; --primary-active:#0958d9;
+    --primary-bg:#e6f4ff; --primary-border:#91caff;
+    --success:#52c41a; --success-bg:#f6ffed; --success-border:#b7eb8f;
+    --error:#ff4d4f; --error-bg:#fff2f0; --error-border:#ffccc7;
+    --warning:#faad14; --warning-bg:#fffbe6; --warning-border:#ffe58f;
+    --purple:#722ed1; --purple-bg:#f9f0ff; --purple-border:#d3adf7;
+    --cyan:#13c2c2; --cyan-bg:#e6fffb;
+    --text:rgba(0,0,0,.88); --text-2:rgba(0,0,0,.65); --text-3:rgba(0,0,0,.45);
+    --border:#f0f0f0; --border-2:#d9d9d9; --bg:#f5f5f5; --bg-2:#fafafa; --white:#fff;
+    --radius:8px; --radius-sm:6px;
+    --shadow:0 1px 2px rgba(0,0,0,.03),0 1px 6px -1px rgba(0,0,0,.02),0 2px 4px rgba(0,0,0,.02);
+    --shadow-lg:0 6px 16px rgba(0,0,0,.08),0 3px 6px -4px rgba(0,0,0,.12),0 9px 28px 8px rgba(0,0,0,.05);
+    --sidebar-w:232px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--font);font-size:14px;color:var(--text);background:var(--bg);line-height:1.5715;-webkit-font-smoothing:antialiased}
+  a{color:var(--primary);text-decoration:none}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#00000026;border-radius:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- Layout ---------- */
+  .layout{display:flex;min-height:100vh}
+  .sidebar{width:var(--sidebar-w);background:#001529;color:#fff;position:fixed;top:0;left:0;bottom:0;display:flex;flex-direction:column;z-index:20}
+  .logo{height:56px;display:flex;align-items:center;gap:10px;padding:0 20px;color:#fff;font-weight:600;font-size:15px;border-bottom:1px solid #ffffff14}
+  .logo .mark{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#1677ff,#13c2c2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+  .logo small{display:block;font-weight:400;font-size:11px;color:#ffffff73;letter-spacing:.3px}
+  .nav{flex:1;padding:8px 0;overflow-y:auto}
+  .nav-item{display:flex;align-items:center;gap:12px;height:42px;padding:0 22px;color:#ffffffa6;cursor:pointer;font-size:14px;transition:.15s;border:none;background:none;width:100%;text-align:left}
+  .nav-item:hover{color:#fff;background:#ffffff0f}
+  .nav-item.active{color:#fff;background:var(--primary)}
+  .nav-item .ic{width:18px;text-align:center;font-size:15px}
+  .nav-group-label{padding:14px 22px 6px;color:#ffffff40;font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+  .sidebar-foot{padding:12px 20px;border-top:1px solid #ffffff14;font-size:12px;color:#ffffff59}
+
+  .main{flex:1;margin-left:var(--sidebar-w);display:flex;flex-direction:column;min-width:0}
+  .topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:10}
+  .crumb{color:var(--text-3);font-size:13px}
+  .crumb b{color:var(--text);font-weight:500}
+  .topbar-spacer{flex:1}
+  .select-wrap{position:relative}
+  select{appearance:none;border:1px solid var(--border-2);background:var(--white);height:32px;border-radius:var(--radius-sm);padding:0 30px 0 12px;font-family:var(--font);font-size:13px;color:var(--text);cursor:pointer}
+  select:hover{border-color:var(--primary)}
+  .select-wrap::after{content:"▾";position:absolute;right:10px;top:7px;color:var(--text-3);pointer-events:none;font-size:11px}
+  .env-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+  .env-dot{width:7px;height:7px;border-radius:50%;background:var(--success)}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+  .content{padding:24px;flex:1}
+
+  /* ---------- Typography & headers ---------- */
+  .page-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+  .page-title{font-size:22px;font-weight:600;color:var(--text)}
+  .page-sub{color:var(--text-3);font-size:13px;margin-top:3px;max-width:680px}
+  .section-title{font-size:15px;font-weight:600;margin:0 0 14px}
+
+  /* ---------- Buttons ---------- */
+  .btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 15px;border-radius:var(--radius-sm);border:1px solid var(--border-2);background:var(--white);color:var(--text);font-size:14px;font-family:var(--font);cursor:pointer;transition:.15s;white-space:nowrap}
+  .btn:hover{color:var(--primary);border-color:var(--primary)}
+  .btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn-primary:hover{background:var(--primary-hover);border-color:var(--primary-hover);color:#fff}
+  .btn-sm{height:26px;padding:0 10px;font-size:13px}
+  .btn-lg{height:40px;padding:0 22px;font-size:15px}
+  .btn-ghost{border-color:transparent;background:transparent}
+  .btn-ghost:hover{background:#0000000a;color:var(--primary)}
+  .btn-danger{color:var(--error);border-color:var(--error)}
+  .btn-danger:hover{background:var(--error);color:#fff;border-color:var(--error)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* ---------- Cards ---------- */
+  .card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--border)}
+  .card-pad{padding:20px}
+  .grid{display:grid;gap:16px}
+  .kpis{grid-template-columns:repeat(4,1fr)}
+  .kpi{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:18px 20px}
+  .kpi .label{color:var(--text-3);font-size:13px;display:flex;align-items:center;gap:7px}
+  .kpi .val{font-size:28px;font-weight:600;margin-top:8px;letter-spacing:-.5px}
+  .kpi .delta{font-size:12px;margin-top:6px}
+  .delta.up{color:var(--success)} .delta.down{color:var(--error)}
+  .kpi .ic-badge{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;float:right;margin-top:-2px}
+
+  /* ---------- Tags ---------- */
+  .tag{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:4px;font-size:12px;line-height:1;border:1px solid transparent;white-space:nowrap}
+  .tag-blue{color:var(--primary);background:var(--primary-bg);border-color:var(--primary-border)}
+  .tag-green{color:#389e0d;background:var(--success-bg);border-color:var(--success-border)}
+  .tag-red{color:#cf1322;background:var(--error-bg);border-color:var(--error-border)}
+  .tag-orange{color:#d46b08;background:var(--warning-bg);border-color:var(--warning-border)}
+  .tag-purple{color:var(--purple);background:var(--purple-bg);border-color:var(--purple-border)}
+  .tag-cyan{color:#08979c;background:var(--cyan-bg);border-color:#87e8de}
+  .tag-gray{color:var(--text-2);background:var(--bg-2);border-color:var(--border-2)}
+
+  /* ---------- Tables ---------- */
+  .tbl-wrap{overflow-x:auto}
+  table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+  table.tbl th{text-align:left;padding:12px 16px;background:var(--bg-2);color:var(--text-2);font-weight:600;font-size:13px;border-bottom:1px solid var(--border);white-space:nowrap}
+  table.tbl td{padding:12px 16px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+  table.tbl tr:last-child td{border-bottom:none}
+  table.tbl tbody tr{transition:.12s}
+  table.tbl tbody tr.clickable{cursor:pointer}
+  table.tbl tbody tr.clickable:hover{background:var(--primary-bg)}
+  .mono{font-family:"SF Mono","Roboto Mono",Menlo,Consolas,monospace;font-size:12.5px}
+  .cell-id{font-family:"SF Mono",Menlo,monospace;font-size:12.5px;color:var(--primary);font-weight:500}
+  .muted{color:var(--text-3)}
+  .strong{font-weight:600}
+
+  /* ---------- Toolbar / filters ---------- */
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .search{position:relative;flex:1;min-width:220px;max-width:340px}
+  .search input{width:100%;height:32px;border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:0 12px 0 32px;font-family:var(--font);font-size:14px}
+  .search input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-bg)}
+  .search .si{position:absolute;left:10px;top:7px;color:var(--text-3)}
+  .seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px}
+  .seg button{border:none;background:none;padding:4px 12px;border-radius:4px;font-size:13px;color:var(--text-2);cursor:pointer;font-family:var(--font)}
+  .seg button.active{background:var(--white);color:var(--primary);box-shadow:var(--shadow);font-weight:500}
+
+  /* ---------- Progress / bars ---------- */
+  .bar{height:8px;background:var(--bg);border-radius:6px;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:6px;background:var(--primary)}
+  .bar.green > i{background:var(--success)} .bar.orange > i{background:var(--warning)} .bar.red > i{background:var(--error)}
+  .ring{width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .ring::before{content:"";position:absolute;width:88px;height:88px;background:var(--white);border-radius:50%}
+  .ring b{position:relative;font-size:24px;font-weight:600}
+  .ring-wrap{position:relative;display:flex;align-items:center;justify-content:center}
+
+  /* mini bar chart */
+  .barchart{display:flex;align-items:stretch;gap:10px;height:120px;padding-top:8px}
+  .barchart .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%}
+  .barchart .col .b{width:60%;max-width:30px;background:linear-gradient(180deg,#91caff,#1677ff);border-radius:5px 5px 0 0;position:relative;transition:.3s;min-height:4px}
+  .barchart .col .b > span{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-3)}
+  .barchart .col small{color:var(--text-3);font-size:11px}
+
+  /* ---------- Drawer & Modal ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;opacity:0;pointer-events:none;transition:.2s}
+  .overlay.open{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:560px;max-width:94vw;background:var(--white);z-index:101;box-shadow:var(--shadow-lg);transform:translateX(100%);transition:transform .26s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border)}
+  .drawer-head h3{font-size:16px;font-weight:600}
+  .drawer-body{padding:24px;overflow-y:auto;flex:1}
+  .drawer-foot{padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+  .modal{position:fixed;top:8vh;left:50%;transform:translateX(-50%) scale(.96);width:640px;max-width:94vw;max-height:84vh;background:var(--white);border-radius:var(--radius);z-index:101;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.2s;display:flex;flex-direction:column}
+  .modal.open{opacity:1;pointer-events:auto;transform:translateX(-50%) scale(1)}
+  .modal-head{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .modal-head h3{font-size:16px;font-weight:600}
+  .modal-body{padding:24px;overflow-y:auto}
+  .modal-foot{padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+  .x{cursor:pointer;color:var(--text-3);font-size:18px;line-height:1;border:none;background:none;padding:4px;border-radius:5px}
+  .x:hover{background:#0000000a;color:var(--text)}
+
+  /* desc list */
+  .dl{display:grid;grid-template-columns:140px 1fr;gap:0;font-size:14px}
+  .dl dt{color:var(--text-3);padding:8px 0;border-bottom:1px solid var(--border)}
+  .dl dd{padding:8px 0;border-bottom:1px solid var(--border)}
+  .dl dt:last-of-type,.dl dd:last-of-type{border-bottom:none}
+
+  /* steps */
+  .steps{list-style:none}
+  .steps li{display:flex;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border)}
+  .steps li:last-child{border-bottom:none}
+  .steps .n{width:22px;height:22px;border-radius:50%;background:var(--primary-bg);color:var(--primary);font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:600}
+  .steps .act{flex:1}
+  .steps .tgt{font-family:"SF Mono",Menlo,monospace;font-size:12px;color:var(--text-3)}
+
+  /* code */
+  pre.code{background:#0d1117;color:#c9d1d9;border-radius:var(--radius);padding:16px 18px;overflow:auto;font-family:"SF Mono","Roboto Mono",Menlo,Consolas,monospace;font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  pre.code .k{color:#ff7b72} pre.code .s{color:#a5d6ff} pre.code .c{color:#8b949e} pre.code .f{color:#d2a8ff} pre.code .t{color:#7ee787}
+  .codebar{display:flex;align-items:center;justify-content:space-between;background:#161b22;color:#8b949e;padding:8px 14px;border-radius:var(--radius) var(--radius) 0 0;font-family:monospace;font-size:12px;border-bottom:1px solid #30363d}
+  .codebar + pre.code{border-radius:0 0 var(--radius) var(--radius)}
+
+  /* tabs */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px}
+  .tabs button{border:none;background:none;padding:9px 16px;font-size:14px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;font-family:var(--font);margin-bottom:-1px}
+  .tabs button.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:500}
+
+  /* toast */
+  #toasts{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:10px;align-items:center}
+  .toast{background:var(--white);box-shadow:var(--shadow-lg);border-radius:var(--radius);padding:10px 16px;display:flex;align-items:center;gap:10px;font-size:14px;border:1px solid var(--border);animation:tin .25s}
+  @keyframes tin{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+  .toast .ti{font-size:16px}
+  .toast.success .ti{color:var(--success)} .toast.error .ti{color:var(--error)} .toast.info .ti{color:var(--primary)}
+
+  /* misc */
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .stack{display:flex;flex-direction:column;gap:16px}
+  .between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg-2);border:1px solid var(--border);border-radius:20px;padding:3px 11px;font-size:12px;color:var(--text-2)}
+  .note{background:var(--primary-bg);border:1px solid var(--primary-border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;color:var(--text-2);display:flex;gap:9px;align-items:flex-start}
+  .note.warn{background:var(--warning-bg);border-color:var(--warning-border)}
+  .note.purple{background:var(--purple-bg);border-color:var(--purple-border)}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:13px;color:var(--text-2);margin-bottom:6px}
+  .field input,.field textarea{width:100%;border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:8px 12px;font-family:var(--font);font-size:14px}
+  .field textarea{min-height:74px;resize:vertical}
+  .field input:focus,.field textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-bg)}
+  .check{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;cursor:pointer;transition:.15s}
+  .check:hover{border-color:var(--primary)}
+  .check input{margin-top:3px}
+  .check .meta{flex:1}
+  .check .meta small{color:var(--text-3);display:block;font-size:12px}
+  .token-pill{font-family:monospace;font-size:12px;color:var(--text-3)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-2);margin-top:10px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .empty{text-align:center;color:var(--text-3);padding:40px}
+  .divider{height:1px;background:var(--border);margin:18px 0}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--primary-border);border-top-color:var(--primary);border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media(max-width:920px){
+    .sidebar{transform:translateX(-100%)} .main{margin-left:0} .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="mark">AQ</div>
+      <div>AI QA Platform<small>Automation Testing</small></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar-foot">v1.0 · Demo · Confidential</div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb" id="crumb"></div>
+      <div class="topbar-spacer"></div>
+      <div class="select-wrap">
+        <select id="productSel">
+          <option value="all">All products</option>
+          <option value="Back Office" selected>Back Office</option>
+          <option value="Online Order">Online Order</option>
+          <option value="POS">POS</option>
+          <option value="KDS">KDS</option>
+          <option value="Kiosk">Kiosk</option>
+        </select>
+      </div>
+      <span class="env-pill"><span class="env-dot"></span> staging</span>
+      <div class="avatar" title="QA Lead">QL</div>
+    </header>
+    <main class="content" id="content"></main>
+  </div>
+</div>
+
+<!-- overlays -->
+<div class="overlay" id="overlay" data-act="close"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="modal" id="modal"></div>
+<div id="toasts"></div>
+
+<script>
+/* ============================================================
+   MOCK DATA — one consistent world. BO-LOGIN-001 threads through
+   cases -> scripts -> runs -> coverage to demonstrate asset reuse.
+   ============================================================ */
+const DB = {
+  kpis:{cases:248, automatedPct:61, passRate:94.2, coverage:73},
+  cases:[
+    {id:"BO-LOGIN-001",title:"Valid user can log in successfully",product:"Back Office",module:"Authentication",feature:"Login",page:"Login",priority:"High",type:"Positive",status:"automated",script:"SCRIPT-BO-LOGIN-001",
+      pre:["The user account exists","The user account is active","The user is not already logged in"],
+      steps:[{a:"Open Login page",t:"Login page"},{a:"Enter email",t:"Login.emailInput",v:"qa_user@example.com"},{a:"Enter password",t:"Login.passwordInput",v:"CorrectPassword123"},{a:"Click Sign In",t:"Login.signInButton"}],
+      expected:["The user is redirected to Dashboard page","The Dashboard page is displayed"],
+      coverage:{requirements:["REQ-AUTH-LOGIN-001"],pages:["PAGE-LOGIN","PAGE-DASHBOARD"],features:["FEATURE-LOGIN"]},lastRun:"pass"},
+    {id:"BO-LOGIN-002",title:"Login fails with invalid password",product:"Back Office",module:"Authentication",feature:"Login",page:"Login",priority:"High",type:"Negative",status:"automated",script:"SCRIPT-BO-LOGIN-002",
+      pre:["The user account exists"],
+      steps:[{a:"Open Login page",t:"Login page"},{a:"Enter email",t:"Login.emailInput",v:"qa_user@example.com"},{a:"Enter wrong password",t:"Login.passwordInput",v:"WrongPass!"},{a:"Click Sign In",t:"Login.signInButton"}],
+      expected:["An error message 'Invalid credentials' is shown","User stays on the Login page"],
+      coverage:{requirements:["REQ-AUTH-LOGIN-002"],pages:["PAGE-LOGIN"],features:["FEATURE-LOGIN"]},lastRun:"pass"},
+    {id:"BO-LOGIN-003",title:"Account locks after 5 failed attempts",product:"Back Office",module:"Authentication",feature:"Login",page:"Login",priority:"Medium",type:"Negative",status:"candidate",script:null,
+      pre:["The user account exists","No prior failed attempts in window"],
+      steps:[{a:"Open Login page",t:"Login page"},{a:"Submit wrong password 5 times",t:"Login.signInButton"},{a:"Attempt 6th login",t:"Login.signInButton"}],
+      expected:["Account is locked","'Account locked' message is shown"],
+      coverage:{requirements:["REQ-AUTH-LOGIN-003"],pages:["PAGE-LOGIN"],features:["FEATURE-LOGIN"]},lastRun:"fail"},
+    {id:"BO-USER-001",title:"Admin can create a new user",product:"Back Office",module:"User Management",feature:"User CRUD",page:"Users",priority:"High",type:"Positive",status:"automated",script:"SCRIPT-BO-USER-001",
+      pre:["Logged in as Admin"],
+      steps:[{a:"Open Users page",t:"Users page"},{a:"Click Add User",t:"Users.addBtn"},{a:"Fill user form",t:"Users.form"},{a:"Save",t:"Users.saveBtn"}],
+      expected:["New user appears in the list","Success toast is shown"],
+      coverage:{requirements:["REQ-USER-CRUD-001"],pages:["PAGE-USERS"],features:["FEATURE-USER-MGMT"]},lastRun:"pass"},
+    {id:"BO-USER-002",title:"Non-admin cannot access User Management",product:"Back Office",module:"User Management",feature:"Permissions",page:"Users",priority:"High",type:"Negative",status:"manual",script:null,
+      pre:["Logged in as non-admin role"],
+      steps:[{a:"Navigate to /users",t:"Users page"}],
+      expected:["Access is denied","User is redirected or sees 403"],
+      coverage:{requirements:["REQ-USER-PERM-001"],pages:["PAGE-USERS"],features:["FEATURE-USER-MGMT"]},lastRun:null},
+    {id:"BO-SET-001",title:"Update store timezone setting",product:"Back Office",module:"Settings",feature:"Store Settings",page:"Settings",priority:"Low",type:"Positive",status:"candidate",script:null,
+      pre:["Logged in as Admin"],steps:[{a:"Open Settings",t:"Settings page"},{a:"Change timezone",t:"Settings.timezone"},{a:"Save",t:"Settings.saveBtn"}],
+      expected:["Timezone is saved","Confirmation shown"],coverage:{requirements:["REQ-SET-001"],pages:["PAGE-SETTINGS"],features:["FEATURE-SETTINGS"]},lastRun:null},
+    {id:"BO-MENU-001",title:"Add a menu item with price",product:"Back Office",module:"Menu Management",feature:"Menu CRUD",page:"Menu",priority:"Medium",type:"Positive",status:"manual",script:null,
+      pre:["Logged in as Admin"],steps:[{a:"Open Menu",t:"Menu page"},{a:"Add item",t:"Menu.addBtn"},{a:"Enter name + price",t:"Menu.form"},{a:"Save",t:"Menu.saveBtn"}],
+      expected:["Item appears with correct price"],coverage:{requirements:["REQ-MENU-001"],pages:["PAGE-MENU"],features:["FEATURE-MENU"]},lastRun:null},
+    {id:"OO-ORDER-001",title:"Guest can place a basic order",product:"Online Order",module:"Ordering",feature:"Checkout",page:"Order",priority:"High",type:"Positive",status:"candidate",script:null,
+      pre:["Store is open","Menu has items"],steps:[{a:"Open Order page",t:"Order page"},{a:"Add item to cart",t:"Order.addItem"},{a:"Checkout",t:"Order.checkoutBtn"},{a:"Confirm",t:"Order.confirmBtn"}],
+      expected:["Order is created","Order confirmation number shown"],coverage:{requirements:["REQ-ORDER-001"],pages:["PAGE-ORDER"],features:["FEATURE-ORDER"]},lastRun:null}
+  ],
+  pages:[
+    {id:"PAGE-LOGIN",route:"/login",product:"Back Office",po:"products/backoffice/pages/LoginPage.ts",hash:"a91f…3c",drift:false,
+      aria:["heading: Sign In","textbox: Email","textbox: Password","button: Sign In","link: Forgot password?"],
+      map:[["Login.emailInput","page.getByTestId('login-email')"],["Login.passwordInput","page.getByTestId('login-password')"],["Login.signInButton","page.getByRole('button', { name: 'Sign In' })"],["Login.forgotLink","page.getByRole('link', { name: 'Forgot password?' })"]]},
+    {id:"PAGE-DASHBOARD",route:"/dashboard",product:"Back Office",po:"products/backoffice/pages/DashboardPage.ts",hash:"77be…01",drift:false,
+      aria:["heading: Dashboard","navigation: Main","button: New Report","table: KPIs"],
+      map:[["Dashboard.heading","page.getByRole('heading', { name: 'Dashboard' })"],["Dashboard.newReport","page.getByRole('button', { name: 'New Report' })"]]},
+    {id:"PAGE-USERS",route:"/users",product:"Back Office",po:"products/backoffice/pages/UserManagementPage.ts",hash:"12cd…9a",drift:true,
+      aria:["heading: User Management","button: Add User","textbox: Search users","table: Users","button: Save"],
+      map:[["Users.addBtn","page.getByRole('button', { name: 'Add User' })"],["Users.search","page.getByPlaceholder('Search users')"],["Users.saveBtn","page.getByRole('button', { name: 'Save' })"]]},
+    {id:"PAGE-SETTINGS",route:"/settings",product:"Back Office",po:"products/backoffice/pages/SettingsPage.ts",hash:"5fa0…7d",drift:false,
+      aria:["heading: Settings","combobox: Timezone","button: Save"],
+      map:[["Settings.timezone","page.getByLabel('Timezone')"],["Settings.saveBtn","page.getByRole('button', { name: 'Save' })"]]},
+    {id:"PAGE-MENU",route:"/menu",product:"Back Office",po:"products/backoffice/pages/MenuPage.ts",hash:"e23b…44",drift:false,
+      aria:["heading: Menu","button: Add Item","table: Menu Items"],map:[["Menu.addBtn","page.getByRole('button', { name: 'Add Item' })"]]},
+    {id:"PAGE-ORDER",route:"/order",product:"Online Order",po:"products/onlineorder/pages/OrderPage.ts",hash:"bb91…2e",drift:false,
+      aria:["heading: Order","button: Add to cart","button: Checkout","button: Confirm"],map:[["Order.addItem","page.getByRole('button', { name: 'Add to cart' })"],["Order.checkoutBtn","page.getByRole('button', { name: 'Checkout' })"]]}
+  ],
+  scripts:[
+    {id:"SCRIPT-BO-LOGIN-001",path:"products/backoffice/tests/login/login-valid.spec.ts",fw:"Playwright",status:"passing",branch:"main",golden:true,cases:["BO-LOGIN-001"],pr:null,hash:"sha:3f9c1a"},
+    {id:"SCRIPT-BO-LOGIN-002",path:"products/backoffice/tests/login/login-invalid-password.spec.ts",fw:"Playwright",status:"passing",branch:"main",golden:false,cases:["BO-LOGIN-002"],pr:null,hash:"sha:7b2e44"},
+    {id:"SCRIPT-BO-USER-001",path:"products/backoffice/tests/users/create-user.spec.ts",fw:"Playwright",status:"passing",branch:"main",golden:false,cases:["BO-USER-001"],pr:null,hash:"sha:c10d9f"},
+    {id:"SCRIPT-BO-LOGIN-003",path:"products/backoffice/tests/login/account-lockout.spec.ts",fw:"Playwright",status:"failing",branch:"fix/login-003-lockout",golden:false,cases:["BO-LOGIN-003"],pr:"open",hash:"sha:aa01f2"}
+  ],
+  runs:[
+    {id:"RUN-2042",env:"staging",status:"failed",total:8,pass:7,fail:1,skip:0,started:"2026-05-22 09:14",dur:"3m 12s",by:"QA Lead",
+      results:[
+        {case:"BO-LOGIN-001",script:"SCRIPT-BO-LOGIN-001",status:"pass",dur:"4.2s"},
+        {case:"BO-LOGIN-002",script:"SCRIPT-BO-LOGIN-002",status:"pass",dur:"3.8s"},
+        {case:"BO-LOGIN-003",script:"SCRIPT-BO-LOGIN-003",status:"fail",dur:"6.1s",err:"TimeoutError: locator.click: Login.signInButton not found after lockout banner rendered",cat:"Script bug"},
+        {case:"BO-USER-001",script:"SCRIPT-BO-USER-001",status:"pass",dur:"5.0s"},
+        {case:"BO-LOGIN-001b",script:"SCRIPT-BO-LOGIN-001",status:"pass",dur:"4.1s"},
+        {case:"BO-USER-001b",script:"SCRIPT-BO-USER-001",status:"pass",dur:"4.9s"},
+        {case:"BO-LOGIN-002b",script:"SCRIPT-BO-LOGIN-002",status:"pass",dur:"3.7s"},
+        {case:"BO-LOGIN-001c",script:"SCRIPT-BO-LOGIN-001",status:"pass",dur:"4.0s"}
+      ]},
+    {id:"RUN-2041",env:"staging",status:"passed",total:7,pass:7,fail:0,skip:0,started:"2026-05-21 18:02",dur:"2m 58s",by:"QA Engineer",results:[]},
+    {id:"RUN-2040",env:"qa",status:"passed",total:6,pass:6,fail:0,skip:0,started:"2026-05-21 11:30",dur:"2m 20s",by:"CI Pipeline",results:[]},
+    {id:"RUN-2039",env:"staging",status:"failed",total:7,pass:5,fail:1,skip:1,started:"2026-05-20 16:45",dur:"3m 40s",by:"QA Engineer",results:[]}
+  ],
+  coverage:{
+    byDimension:[
+      {dim:"Requirements",covered:54,total:74},
+      {dim:"Pages",covered:18,total:23},
+      {dim:"Features",covered:31,total:40},
+      {dim:"Roles",covered:4,total:6},
+      {dim:"Workflows",covered:12,total:19},
+      {dim:"Historical bugs",covered:22,total:28}
+    ],
+    gaps:[
+      {ref:"REQ-AUTH-LOGIN-003",dim:"Requirements",title:"Account lockout after N failed attempts",risk:"High",reason:"Security-relevant, no passing automation"},
+      {ref:"FEATURE-USER-MGMT (non-admin)",dim:"Roles",title:"Non-admin permission denial",risk:"High",reason:"Manual only — frequent regression area"},
+      {ref:"PAGE-MENU",dim:"Pages",title:"Menu item creation",risk:"Medium",reason:"No automated case linked"},
+      {ref:"REQ-ORDER-001",dim:"Workflows",title:"Guest checkout happy path",risk:"Medium",reason:"Candidate not yet generated"},
+      {ref:"REQ-SET-001",dim:"Requirements",title:"Store timezone persistence",risk:"Low",reason:"Low change frequency"}
+    ]
+  },
+  trends:[
+    {m:"Dec",pass:88,auto:42},{m:"Jan",pass:90,auto:48},{m:"Feb",pass:91,auto:53},{m:"Mar",pass:92,auto:57},{m:"Apr",pass:93,auto:59},{m:"May",pass:94,auto:61}
+  ]
+};
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $=(s,el=document)=>el.querySelector(s);
+const esc=(s)=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* All dynamic DOM writes go through DOMPurify (XSS-safe). */
+function setHTML(node,html){ node.innerHTML = (window.DOMPurify ? DOMPurify.sanitize(html) : html); }
+function render(html){ setHTML($("#content"),html); $("#content").scrollTop=0; }
+let CURRENT_PRODUCT="Back Office";
+
+const STATUS_TAG={automated:'tag-green',candidate:'tag-orange',manual:'tag-gray'};
+const PRIO_TAG={High:'tag-red',Medium:'tag-orange',Low:'tag-gray'};
+const RUN_TAG={passed:'tag-green',failed:'tag-red',running:'tag-blue',queued:'tag-gray'};
+const RES_TAG={pass:'tag-green',fail:'tag-red',skip:'tag-gray'};
+const SCRIPT_STATUS_TAG={passing:'tag-green',failing:'tag-red',draft:'tag-gray'};
+const RISK_TAG={High:'tag-red',Medium:'tag-orange',Low:'tag-gray'};
+
+function tag(text,cls){return `<span class="tag ${cls}">${esc(text)}</span>`;}
+function filteredCases(){return CURRENT_PRODUCT==="all"?DB.cases:DB.cases.filter(c=>c.product===CURRENT_PRODUCT);}
+function filteredPages(){return CURRENT_PRODUCT==="all"?DB.pages:DB.pages.filter(p=>p.product===CURRENT_PRODUCT);}
+
+/* ---- overlays ---- */
+function openDrawer(title,bodyHTML,footHTML){
+  const d=$("#drawer");
+  setHTML(d,`<div class="drawer-head"><h3>${esc(title)}</h3><button class="x" data-act="close">✕</button></div>
+    <div class="drawer-body">${bodyHTML}</div>${footHTML?`<div class="drawer-foot">${footHTML}</div>`:''}`);
+  $("#overlay").classList.add("open"); d.classList.add("open");
+}
+function openModal(title,bodyHTML,footHTML){
+  const m=$("#modal");
+  setHTML(m,`<div class="modal-head"><h3>${esc(title)}</h3><button class="x" data-act="close">✕</button></div>
+    <div class="modal-body">${bodyHTML}</div>${footHTML?`<div class="modal-foot">${footHTML}</div>`:''}`);
+  $("#overlay").classList.add("open"); m.classList.add("open");
+}
+function closeOverlays(){["#overlay","#drawer","#modal"].forEach(s=>$(s).classList.remove("open"));}
+function toast(msg,type="success"){
+  const ic={success:"✓",error:"✕",info:"ⓘ"}[type]||"✓";
+  const t=document.createElement("div");t.className=`toast ${type}`;
+  setHTML(t,`<span class="ti">${ic}</span><span>${esc(msg)}</span>`);
+  $("#toasts").appendChild(t);
+  setTimeout(()=>{t.style.opacity=0;t.style.transition=".3s";setTimeout(()=>t.remove(),300);},2600);
+}
+
+/* ============================================================
+   NAV / ROUTER
+   ============================================================ */
+const NAV=[
+  {group:"Overview"},
+  {id:"dashboard",label:"Dashboard",ic:"▦"},
+  {group:"Test Assets"},
+  {id:"cases",label:"Case Library",ic:"▤"},
+  {id:"pages",label:"Page Registry",ic:"◫"},
+  {id:"scripts",label:"Script Library",ic:"❮❯"},
+  {group:"AI & Execution"},
+  {id:"ai",label:"AI Generation",ic:"✦"},
+  {id:"runs",label:"Execution Center",ic:"▶"},
+  {id:"coverage",label:"Coverage",ic:"◎"}
+];
+const TITLES={dashboard:"Dashboard",cases:"Case Library",pages:"Page Registry",scripts:"Script Library",ai:"AI Generation Workspace",runs:"Execution Center",coverage:"Coverage Dashboard"};
+
+function renderNav(active){
+  setHTML($("#nav"),NAV.map(n=>{
+    if(n.group)return `<div class="nav-group-label">${n.group}</div>`;
+    return `<button class="nav-item ${n.id===active?'active':''}" data-act="nav" data-a="${n.id}"><span class="ic">${n.ic}</span>${n.label}</button>`;
+  }).join(""));
+}
+function route(){
+  const page=(location.hash.slice(1)||"dashboard");
+  renderNav(page);
+  setHTML($("#crumb"),`AI QA Platform <span style="margin:0 6px;color:#d9d9d9">/</span> <b>${esc(TITLES[page]||"Dashboard")}</b>`);
+  closeOverlays();
+  ({dashboard:viewDashboard,cases:viewCases,pages:viewPages,scripts:viewScripts,ai:viewAI,runs:viewRuns,coverage:viewCoverage}[page]||viewDashboard)();
+}
+window.addEventListener("hashchange",route);
+
+/* ============================================================
+   VIEW: DASHBOARD
+   ============================================================ */
+function viewDashboard(){
+  const k=DB.kpis, recent=DB.runs.slice(0,4), maxAuto=70;
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Dashboard</div>
+    <div class="page-sub">Unified QA portal home — asset health, recent execution, and AI-driven trends across ${CURRENT_PRODUCT==="all"?"all products":esc(CURRENT_PRODUCT)}.</div></div>
+    <div class="btn-row">
+      <button class="btn" data-act="nav" data-a="cases">⇪ Import cases</button>
+      <button class="btn btn-primary" data-act="nav" data-a="ai">✦ Open AI Workspace</button>
+    </div>
+  </div>
+
+  <div class="grid kpis" style="margin-bottom:16px">
+    ${kpiCard("Total cases",k.cases,"+12 this week","up","#e6f4ff","#1677ff","▤")}
+    ${kpiCard("Automated",k.automatedPct+"%","+4% vs last month","up","#f6ffed","#52c41a","✦")}
+    ${kpiCard("Pass rate",k.passRate+"%","-0.5% vs last run","down","#fffbe6","#faad14","▶")}
+    ${kpiCard("Coverage",k.coverage+"%","+6% this month","up","#f9f0ff","#722ed1","◎")}
+  </div>
+
+  <div class="row" style="align-items:stretch">
+    <div class="card card-pad" style="flex:2;min-width:340px">
+      <div class="between" style="margin-bottom:6px"><div class="section-title" style="margin:0">Recent runs</div><a href="#runs">View all →</a></div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Run</th><th>Env</th><th>Result</th><th>Pass / Fail</th><th>Started</th><th></th></tr></thead>
+        <tbody>${recent.map(r=>`
+          <tr class="clickable" data-act="gotoRunDetail" data-a="${r.id}">
+            <td class="cell-id">${r.id}</td>
+            <td><span class="chip">${r.env}</span></td>
+            <td>${tag(r.status,RUN_TAG[r.status])}</td>
+            <td><span style="color:#52c41a">${r.pass}✓</span> ${r.fail?`<span style="color:#ff4d4f">${r.fail}✕</span>`:''}</td>
+            <td class="muted">${r.started}</td>
+            <td class="muted">→</td>
+          </tr>`).join("")}
+        </tbody></table></div>
+    </div>
+
+    <div class="card card-pad" style="flex:1;min-width:260px">
+      <div class="section-title">Pass rate &amp; automation trend</div>
+      <div class="barchart">
+        ${DB.trends.map(t=>`<div class="col">
+          <div class="b" style="height:${(t.auto/maxAuto*100).toFixed(0)}%"><span>${t.auto}%</span></div>
+          <small>${t.m}</small></div>`).join("")}
+      </div>
+      <div class="legend"><span><i style="background:#e6f4ff"></i>Automated %</span></div>
+      <div class="divider"></div>
+      <div class="note purple"><span>✦</span><div><b>AI token savings this month:</b> ~3.4M tokens avoided by using ARIA snapshots + Locator Maps instead of full HTML (≈ 71% reduction on generation calls).</div></div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:16px">
+    <div class="card card-pad" style="flex:1;min-width:280px">
+      <div class="section-title">Asset composition</div>
+      ${composition()}
+    </div>
+    <div class="card card-pad" style="flex:1;min-width:280px">
+      <div class="section-title">Attention needed</div>
+      <div class="stack" style="gap:10px">
+        ${attentionItem("✕","#ff4d4f","RUN-2042 has 1 failing case","BO-LOGIN-003 — classified as script bug","gotoRunDetail","RUN-2042")}
+        ${attentionItem("⚠","#faad14","PAGE-USERS drift detected","DOM hash changed — 1 dependent script at risk","nav","pages")}
+        ${attentionItem("◷","#1677ff","3 automation candidates queued","Ready for AI script generation","nav","cases")}
+        ${attentionItem("◎","#722ed1","5 coverage gaps ranked","2 high-risk requirements uncovered","nav","coverage")}
+      </div>
+    </div>
+  </div>`);
+}
+function kpiCard(label,val,delta,dir,bg,color,ic){
+  return `<div class="kpi">
+    <div class="ic-badge" style="background:${bg};color:${color}">${ic}</div>
+    <div class="label">${label}</div>
+    <div class="val">${val}</div>
+    <div class="delta ${dir}">${dir==='up'?'↑':'↓'} ${delta}</div>
+  </div>`;
+}
+function composition(){
+  const cs=DB.cases, tot=cs.length;
+  const a=cs.filter(c=>c.status==='automated').length,cd=cs.filter(c=>c.status==='candidate').length,m=cs.filter(c=>c.status==='manual').length;
+  const seg=(n,cls,lbl,bar)=>`<div class="between" style="margin-bottom:8px"><span>${tag(lbl,cls)}</span><span class="strong">${n}</span></div><div class="bar ${bar}"><i style="width:${(n/tot*100).toFixed(0)}%"></i></div>`;
+  return `<div class="stack" style="gap:14px">
+    ${seg(a,'tag-green','Automated','green')}
+    ${seg(cd,'tag-orange','Candidate','orange')}
+    ${seg(m,'tag-gray','Manual','')}
+  </div>`;
+}
+function attentionItem(ic,color,title,sub,act,arg){
+  return `<div class="check" style="cursor:pointer;margin:0" data-act="${act}" data-a="${arg}">
+    <span style="color:${color};font-size:16px">${ic}</span>
+    <div class="meta"><div class="strong">${esc(title)}</div><small>${esc(sub)}</small></div>
+    <span class="muted">→</span></div>`;
+}
+
+/* ============================================================
+   VIEW: CASE LIBRARY
+   ============================================================ */
+let caseFilter="all",caseSearch="";
+function viewCases(){
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Case Library</div>
+    <div class="page-sub">Structured, deduplicated test cases. Import existing manual cases and let AI clean, classify, and assess automation suitability. <b>FR-CASE-001…009</b></div></div>
+    <div class="btn-row">
+      <button class="btn" data-act="openImport">⇪ Import</button>
+      <button class="btn" data-act="openDedupe">⧉ Find duplicates</button>
+      <button class="btn btn-primary" data-act="nav" data-a="ai">✦ Generate from intent</button>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="search"><span class="si">⌕</span><input id="caseSearchInput" placeholder="Search cases by title or ID…" value="${esc(caseSearch)}"></div>
+    <div class="seg" id="caseSeg">
+      ${["all","automated","candidate","manual"].map(s=>`<button class="${caseFilter===s?'active':''}" data-act="caseFilter" data-a="${s}">${s[0].toUpperCase()+s.slice(1)}</button>`).join("")}
+    </div>
+    <div class="topbar-spacer"></div>
+    <span class="muted" id="caseCount"></span>
+  </div>
+  <div class="card"><div class="tbl-wrap" id="caseTableHost"></div></div>`);
+  renderCaseTable();
+}
+function syncSeg(){[...document.querySelectorAll('#caseSeg button')].forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===caseFilter));}
+function renderCaseTable(){
+  let rows=filteredCases();
+  if(caseFilter!=="all")rows=rows.filter(c=>c.status===caseFilter);
+  if(caseSearch)rows=rows.filter(c=>(c.title+c.id).toLowerCase().includes(caseSearch.toLowerCase()));
+  const cnt=$("#caseCount"); if(cnt)cnt.textContent=`${rows.length} case${rows.length!==1?'s':''}`;
+  const host=$("#caseTableHost"); if(!host)return;
+  /* Sanitize a COMPLETE table — DOMPurify drops bare <tr> injected into a <tbody>. */
+  setHTML(host,`<table class="tbl">
+    <thead><tr><th>Case ID</th><th>Title</th><th>Module</th><th>Priority</th><th>Type</th><th>Automation</th><th>Last run</th></tr></thead>
+    <tbody>${rows.length?rows.map(c=>`
+      <tr class="clickable" data-act="openCase" data-a="${c.id}">
+        <td class="cell-id">${c.id}</td>
+        <td><div class="strong">${esc(c.title)}</div></td>
+        <td>${esc(c.module)}</td>
+        <td>${tag(c.priority,PRIO_TAG[c.priority])}</td>
+        <td><span class="chip">${c.type}</span></td>
+        <td>${tag(c.status,STATUS_TAG[c.status])}</td>
+        <td>${c.lastRun?tag(c.lastRun,RES_TAG[c.lastRun]):'<span class="muted">—</span>'}</td>
+      </tr>`).join(""):`<tr><td colspan="7"><div class="empty">No cases match your filters.</div></td></tr>`}</tbody>
+  </table>`);
+}
+function openCase(id){
+  const c=DB.cases.find(x=>x.id===id);
+  const sc=c.script?DB.scripts.find(s=>s.id===c.script):null;
+  const body=`
+    <div class="between" style="margin-bottom:14px">
+      <div><div class="cell-id" style="font-size:13px">${c.id}</div><div style="font-size:17px;font-weight:600;margin-top:2px">${esc(c.title)}</div></div>
+      ${tag(c.status,STATUS_TAG[c.status])}
+    </div>
+    <dl class="dl">
+      <dt>Product</dt><dd>${esc(c.product)}</dd>
+      <dt>Module</dt><dd>${esc(c.module)} · ${esc(c.feature)}</dd>
+      <dt>Page</dt><dd><a href="#pages">${esc(c.page)}</a></dd>
+      <dt>Priority</dt><dd>${tag(c.priority,PRIO_TAG[c.priority])}</dd>
+      <dt>Type</dt><dd>${c.type}</dd>
+      <dt>Linked script</dt><dd>${sc?`<a href="#scripts" class="cell-id">${sc.id}</a>`:'<span class="muted">none — candidate for generation</span>'}</dd>
+    </dl>
+    <div class="divider"></div>
+    <div class="section-title" style="font-size:14px">Preconditions</div>
+    <ul style="margin:0 0 4px 18px;color:rgba(0,0,0,.65)">${c.pre.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>
+    <div class="section-title" style="font-size:14px;margin-top:18px">Steps</div>
+    <ol class="steps">${c.steps.map((s,i)=>`<li><span class="n">${i+1}</span><div class="act">${esc(s.a)} ${s.v?`<span class="muted">→ "${esc(s.v)}"</span>`:''}<div class="tgt">${esc(s.t)}</div></div></li>`).join("")}</ol>
+    <div class="section-title" style="font-size:14px;margin-top:18px">Expected result</div>
+    <ul style="margin:0 0 4px 18px;color:rgba(0,0,0,.65)">${c.expected.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>
+    <div class="divider"></div>
+    <div class="section-title" style="font-size:14px">Coverage links</div>
+    <div class="row" style="gap:8px">
+      ${c.coverage.requirements.map(r=>tag(r,'tag-blue')).join("")}
+      ${c.coverage.pages.map(p=>tag(p,'tag-cyan')).join("")}
+      ${c.coverage.features.map(f=>tag(f,'tag-purple')).join("")}
+    </div>`;
+  const foot=c.status==='automated'
+    ? `<button class="btn" data-act="closeNav" data-a="runs">▶ Run now</button><button class="btn btn-primary" data-act="closeNav" data-a="scripts">View script</button>`
+    : `<button class="btn" data-act="aiClean" data-a="${c.id}">✦ AI clean</button><button class="btn btn-primary" data-act="genFromCase" data-a="${c.id}">✦ Generate script</button>`;
+  openDrawer("Case detail",body,foot);
+}
+function openImport(){
+  openModal("Import test cases",`
+    <div class="note"><span>ⓘ</span><div>Upload CSV / Excel / JSON. Each row becomes a draft case with source provenance retained; malformed rows are reported. <b>FR-CASE-001</b></div></div>
+    <div class="field" style="margin-top:16px">
+      <label>Drop file or choose</label>
+      <div style="border:1.5px dashed #d9d9d9;border-radius:8px;padding:28px;text-align:center;color:rgba(0,0,0,.45)">⇪ Drag <b>manual_cases.xlsx</b> here<br><small>Detected: 42 rows · 3 products · 2 malformed</small></div>
+    </div>
+    <div class="field"><label>Default product</label><input value="${esc(CURRENT_PRODUCT)}"></div>
+    <label class="check"><input type="checkbox" checked><div class="meta"><b>Run AI cleaning on import</b><small>Normalize wording &amp; supplement missing expected results (you accept changes after).</small></div></label>
+    <label class="check"><input type="checkbox" checked><div class="meta"><b>Detect duplicates</b><small>Flag near-duplicates against the existing library via embeddings.</small></div></label>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="importDo">Import 40 cases</button>`);
+}
+function openDedupe(){
+  openModal("Duplicate detection",`
+    <div class="note"><span>⧉</span><div>Semantic similarity over case embeddings surfaced 1 candidate pair. Merging preserves coverage links. <b>FR-CASE-005</b></div></div>
+    <div class="card card-pad" style="margin-top:14px">
+      <div class="between"><span class="cell-id">BO-LOGIN-002</span><span class="tag tag-orange">94% similar</span></div>
+      <div class="strong" style="margin:4px 0">Login fails with invalid password</div>
+      <div class="divider"></div>
+      <div class="between"><span class="cell-id">BO-LOGIN-014 (incoming)</span></div>
+      <div class="strong" style="margin:4px 0">Wrong password shows error on sign in</div>
+    </div>
+  `,`<button class="btn" data-act="close">Keep both</button><button class="btn btn-primary" data-act="mergeDo">Merge</button>`);
+}
+
+/* ============================================================
+   VIEW: PAGE REGISTRY
+   ============================================================ */
+function viewPages(){
+  const pages=filteredPages();
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Page Registry</div>
+    <div class="page-sub">Low-token page profiles: ARIA snapshots + Locator Maps + Page Object paths replace full HTML/screenshots as AI input. <b>FR-PAGE-001…006</b></div></div>
+    <button class="btn btn-primary" data-act="toast" data-msg="Capture queued — ARIA snapshot will be generated" data-type="info">+ Register / capture page</button>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+    ${pages.map(p=>`
+      <div class="card card-pad" style="cursor:pointer" data-act="openPage" data-a="${p.id}">
+        <div class="between"><span class="cell-id">${p.id}</span>${p.drift?tag('drift','tag-orange'):tag('stable','tag-green')}</div>
+        <div class="mono muted" style="margin:8px 0">${p.route}</div>
+        <div class="row" style="gap:14px;font-size:12px;color:rgba(0,0,0,.45)">
+          <span>◫ ${p.aria.length} aria nodes</span><span>⌖ ${p.map.length} locators</span>
+        </div>
+        <div class="divider"></div>
+        <div class="token-pill">PO: ${esc(p.po.split('/').pop())}</div>
+        <div class="token-pill">dom_hash: ${p.hash}</div>
+      </div>`).join("")}
+  </div>`);
+}
+function openPage(id){
+  const p=DB.pages.find(x=>x.id===id);
+  const body=`
+    <div class="between" style="margin-bottom:12px">
+      <div><div class="cell-id">${p.id}</div><div class="mono" style="font-size:15px;margin-top:3px">${p.route}</div></div>
+      ${p.drift?tag('drift detected','tag-orange'):tag('stable','tag-green')}
+    </div>
+    <dl class="dl">
+      <dt>Product</dt><dd>${esc(p.product)}</dd>
+      <dt>Page Object</dt><dd class="mono" style="font-size:12px">${esc(p.po)}</dd>
+      <dt>DOM hash</dt><dd class="mono">${p.hash}</dd>
+    </dl>
+    ${p.drift?`<div class="note warn" style="margin-top:14px"><span>⚠</span><div>DOM hash changed since last capture — dependent scripts flagged at-risk. Re-capture recommended. <b>FR-PAGE-005</b></div></div>`:''}
+    <div class="section-title" style="font-size:14px;margin-top:18px">ARIA snapshot <span class="token-pill">(~${p.aria.length*6} tokens vs ~3.2k for full HTML)</span></div>
+    <pre class="code">${p.aria.map(a=>`<span class="t">- </span>${esc(a)}`).join("\n")}</pre>
+    <div class="section-title" style="font-size:14px;margin-top:18px">Locator Map</div>
+    <pre class="code">${p.map.map(([k,v])=>`<span class="f">${esc(k.padEnd(22))}</span><span class="c">→</span> ${esc(v)}`).join("\n")}</pre>`;
+  openDrawer("Page profile",body,
+    `<button class="btn" data-act="toast" data-msg="Re-capture queued for ${p.id}" data-type="info">↻ Re-capture</button><button class="btn btn-primary" data-act="closeNav" data-a="scripts">View Page Object</button>`);
+}
+
+/* ============================================================
+   VIEW: SCRIPT LIBRARY
+   ============================================================ */
+function viewScripts(){
+  const scripts=CURRENT_PRODUCT==="all"?DB.scripts:DB.scripts.filter(s=>{const c=DB.cases.find(x=>x.id===s.cases[0]);return c&&c.product===CURRENT_PRODUCT;});
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Script Library</div>
+    <div class="page-sub">Playwright scripts live in Git — the DB stores metadata, branch, status and case links only. <b>FR-SCRIPT-001…005</b></div></div>
+    <div class="chip">repo: <b style="margin-left:4px">qa-automation</b></div>
+  </div>
+  <div class="card"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Script ID</th><th>File path</th><th>Status</th><th>Branch</th><th>Cases</th><th></th><th></th></tr></thead>
+    <tbody>${scripts.map(s=>`
+      <tr class="clickable" data-act="openScript" data-a="${s.id}">
+        <td class="cell-id">${s.id} ${s.golden?'<span class="tag tag-purple" style="margin-left:4px">★ golden</span>':''}</td>
+        <td class="mono" style="font-size:12px">${esc(s.path)}</td>
+        <td>${tag(s.status,SCRIPT_STATUS_TAG[s.status])}</td>
+        <td><span class="chip">${esc(s.branch)}</span>${s.pr?` ${tag('PR open','tag-blue')}`:''}</td>
+        <td>${s.cases.map(c=>`<span class="cell-id">${c}</span>`).join(", ")}</td>
+        <td>${s.status==='failing'?'<span class="tag tag-red">needs repair</span>':''}</td>
+        <td class="muted">→</td>
+      </tr>`).join("")}
+    </tbody></table></div></div>`);
+}
+function scriptSource(s){
+  const c=DB.cases.find(x=>x.id===s.cases[0]);
+  const inst=c.page.toLowerCase()+"Page";
+  return `<span class="k">import</span> { test, expect } <span class="k">from</span> <span class="s">'@playwright/test'</span>;
+<span class="k">import</span> { <span class="f">${c.page}Page</span> } <span class="k">from</span> <span class="s">'../../pages/${c.page}Page'</span>;
+
+test(<span class="s">'${s.cases[0]}: ${esc(c.title)}'</span>, <span class="k">async</span> ({ page }) => {
+  test.info().annotations.push({ type: <span class="s">'case_id'</span>, description: <span class="s">'${s.cases[0]}'</span> });
+
+  <span class="k">const</span> ${inst} = <span class="k">new</span> <span class="f">${c.page}Page</span>(page);
+  <span class="k">await</span> ${inst}.open();
+  <span class="k">await</span> ${inst}.${c.page==='Login'?`login(process.env.QA_USER_EMAIL!, process.env.QA_USER_PASSWORD!)`:'perform()'};
+  <span class="k">await</span> expect(page).toHaveURL(<span class="s">/dashboard/</span>);
+});`;
+}
+function openScript(id){
+  const s=DB.scripts.find(x=>x.id===id);
+  const body=`
+    <dl class="dl">
+      <dt>Script ID</dt><dd class="cell-id">${s.id}</dd>
+      <dt>Framework</dt><dd>${s.fw}</dd>
+      <dt>Status</dt><dd>${tag(s.status,SCRIPT_STATUS_TAG[s.status])}</dd>
+      <dt>Branch</dt><dd><span class="chip">${esc(s.branch)}</span> ${s.pr?tag('PR open','tag-blue'):''}</dd>
+      <dt>Content hash</dt><dd class="mono">${s.hash}</dd>
+      <dt>Linked cases</dt><dd>${s.cases.map(c=>`<span class="cell-id">${c}</span>`).join(", ")}</dd>
+    </dl>
+    ${s.golden?`<div class="note purple" style="margin-top:12px"><span>★</span><div>Golden script — used as a style exemplar in AI generation context. <b>FR-SCRIPT-005</b></div></div>`:''}
+    <div class="codebar" style="margin-top:16px"><span>${esc(s.path)}</span><span>${s.fw}</span></div>
+    <pre class="code">${scriptSource(s)}</pre>`;
+  const foot=s.status==='failing'
+    ?`<button class="btn" data-act="close">Close</button><button class="btn btn-danger" data-act="gotoRunDetail" data-a="RUN-2042">View failing run</button>`
+    :`<button class="btn" data-act="close">Close</button><button class="btn btn-primary" data-act="toastClose" data-msg="Dispatched ${s.id} to a Playwright worker" data-type="success">▶ Run</button>`;
+  openModal("Script — read-only (from Git)",body,foot);
+}
+
+/* ============================================================
+   VIEW: AI GENERATION WORKSPACE  (flagship)
+   ============================================================ */
+let aiContext=[
+  {k:"ARIA snapshot — PAGE-LOGIN",t:62,on:true,why:"Page semantics (roles + names)"},
+  {k:"Locator Map — PAGE-LOGIN",t:88,on:true,why:"4 locators, avoids selector guessing"},
+  {k:"Page Object — LoginPage.ts",t:140,on:true,why:"Reuse business methods"},
+  {k:"Similar cases (2) — BO-LOGIN-001/002",t:210,on:true,why:"Style + reuse exemplars"},
+  {k:"Requirement rules — REQ-AUTH-LOGIN-*",t:95,on:true,why:"Acceptance constraints"},
+  {k:"Project conventions (cached)",t:0,on:true,why:"Fixed system prompt — not re-billed"},
+  {k:"Full page HTML",t:3200,on:false,why:"Excluded — high cost, low value"},
+  {k:"Full-page screenshot",t:1100,on:false,why:"Excluded — semantics suffice"}
+];
+function viewAI(){
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">AI Generation Workspace</div>
+    <div class="page-sub">Enter intent → the platform assembles minimal context → AI returns a structured case &amp; Playwright script. Reuse-first, token-aware, human-accepted. <b>FR-AI-001…009</b></div></div>
+  </div>
+  <div class="row" style="align-items:flex-start">
+    <div class="stack" style="flex:1;min-width:320px">
+      <div class="card card-pad">
+        <div class="section-title">1 · Test intent</div>
+        <div class="field"><label>Describe what to test (natural language)</label>
+          <textarea id="intent">Verify that a valid Back Office user can log in and reach the Dashboard, and that an invalid password is rejected.</textarea></div>
+        <div class="row" style="gap:10px">
+          <div class="field" style="flex:1;margin:0"><label>Product</label><input value="Back Office" readonly></div>
+          <div class="field" style="flex:1;margin:0"><label>Page</label><input value="PAGE-LOGIN" readonly></div>
+        </div>
+      </div>
+      <div class="card card-pad">
+        <div class="between"><div class="section-title" style="margin:0">2 · Assembled context</div><span class="token-pill" id="ctxTotal"></span></div>
+        <div class="page-sub" style="margin:4px 0 12px">Toggle elements before sending. The platform prefers semantic assets over raw HTML. <b>FR-AI-002 · NFR-COST</b></div>
+        <div id="ctxList"></div>
+        <div class="note" style="margin-top:12px"><span>ⓘ</span><div id="reuseNote"></div></div>
+      </div>
+      <button class="btn btn-primary btn-lg" style="width:100%;justify-content:center" data-act="runGeneration">✦ Generate case &amp; script</button>
+    </div>
+    <div class="stack" style="flex:1.2;min-width:340px">
+      <div class="card card-pad" id="aiOutput">
+        <div class="empty">
+          <div style="font-size:36px">✦</div>
+          <div class="strong" style="margin-top:8px">Output appears here</div>
+          <div>Generated structured case + Playwright script, with token &amp; cost transparency.</div>
+        </div>
+      </div>
+    </div>
+  </div>`);
+  renderCtx();
+}
+function renderCtx(){
+  setHTML($("#ctxList"),aiContext.map((c,i)=>`
+    <label class="check" style="margin-bottom:6px">
+      <input type="checkbox" ${c.on?'checked':''} ${c.k==='Project conventions (cached)'?'disabled':''} data-ctx="${i}">
+      <div class="meta"><b>${esc(c.k)}</b><small>${esc(c.why)}</small></div>
+      <span class="token-pill">${c.t?`~${c.t} tok`:'cached'}</span>
+    </label>`).join(""));
+  const total=aiContext.filter(c=>c.on).reduce((a,c)=>a+c.t,0);
+  $("#ctxTotal").textContent=`~${total} tokens to send`;
+  const saved=4300-total;
+  setHTML($("#reuseNote"),`<b>Reuse-first:</b> 2 similar assets found in the semantic cache. Sending <b>~${total} tokens</b> vs a full-HTML baseline of <b>~4,300</b> — about <b>${Math.round(saved/4300*100)}% saved</b>. <b>FR-AI-004</b>`);
+}
+function runGeneration(){
+  setHTML($("#aiOutput"),`<div class="empty"><span class="spin"></span><div style="margin-top:12px">Assembling context &amp; calling generation engine…</div></div>`);
+  setTimeout(renderAIResult,1100);
+}
+function renderAIResult(){
+  const caseJSON=`{
+  <span class="f">"case_id"</span>: <span class="s">"BO-LOGIN-001"</span>,
+  <span class="f">"title"</span>: <span class="s">"Valid user can log in successfully"</span>,
+  <span class="f">"product"</span>: <span class="s">"Back Office"</span>,
+  <span class="f">"module"</span>: <span class="s">"Authentication"</span>,
+  <span class="f">"page"</span>: <span class="s">"Login"</span>,
+  <span class="f">"priority"</span>: <span class="s">"High"</span>,
+  <span class="f">"type"</span>: <span class="s">"Positive"</span>,
+  <span class="f">"steps"</span>: [
+    { <span class="f">"step"</span>:1, <span class="f">"action"</span>:<span class="s">"Open Login page"</span> },
+    { <span class="f">"step"</span>:2, <span class="f">"action"</span>:<span class="s">"Enter email"</span>, <span class="f">"target"</span>:<span class="s">"Login.emailInput"</span> },
+    { <span class="f">"step"</span>:3, <span class="f">"action"</span>:<span class="s">"Enter password"</span>, <span class="f">"target"</span>:<span class="s">"Login.passwordInput"</span> },
+    { <span class="f">"step"</span>:4, <span class="f">"action"</span>:<span class="s">"Click Sign In"</span>, <span class="f">"target"</span>:<span class="s">"Login.signInButton"</span> }
+  ],
+  <span class="f">"expected_result"</span>: [<span class="s">"Redirected to Dashboard"</span>],
+  <span class="f">"coverage"</span>: { <span class="f">"requirements"</span>:[<span class="s">"REQ-AUTH-LOGIN-001"</span>] }
+}`;
+  const scriptCode=`<span class="k">import</span> { test, expect } <span class="k">from</span> <span class="s">'@playwright/test'</span>;
+<span class="k">import</span> { <span class="f">LoginPage</span> } <span class="k">from</span> <span class="s">'../../pages/LoginPage'</span>;
+
+test(<span class="s">'BO-LOGIN-001: Valid user login'</span>, <span class="k">async</span> ({ page }) => {
+  <span class="c">// uses Locator Map — no inline selectors generated</span>
+  <span class="k">const</span> loginPage = <span class="k">new</span> <span class="f">LoginPage</span>(page);
+  <span class="k">await</span> loginPage.open();
+  <span class="k">await</span> loginPage.login(process.env.QA_USER_EMAIL!, process.env.QA_USER_PASSWORD!);
+  <span class="k">await</span> expect(page).toHaveURL(<span class="s">/dashboard/</span>);
+});`;
+  setHTML($("#aiOutput"),`
+    <div class="between" style="margin-bottom:8px"><div class="section-title" style="margin:0">3 · Generated output</div>${tag('draft — awaiting acceptance','tag-orange')}</div>
+    <div class="row" style="gap:8px;margin-bottom:14px">
+      <div class="card card-pad" style="flex:1;text-align:center;padding:12px"><div class="muted" style="font-size:12px">Input tokens</div><div class="strong" style="font-size:18px">595</div></div>
+      <div class="card card-pad" style="flex:1;text-align:center;padding:12px"><div class="muted" style="font-size:12px">Output tokens</div><div class="strong" style="font-size:18px">412</div></div>
+      <div class="card card-pad" style="flex:1;text-align:center;padding:12px"><div class="muted" style="font-size:12px">Est. cost</div><div class="strong" style="font-size:18px">$0.014</div></div>
+      <div class="card card-pad" style="flex:1;text-align:center;padding:12px;background:#f6ffed;border-color:#b7eb8f"><div class="muted" style="font-size:12px">Tokens saved</div><div class="strong" style="font-size:18px;color:#389e0d">~86%</div></div>
+    </div>
+    <div class="tabs" id="aiTabs">
+      <button class="active" data-act="aiTab" data-a="0">Structured case</button>
+      <button data-act="aiTab" data-a="1">Playwright script</button>
+    </div>
+    <div id="aiTab0"><pre class="code">${caseJSON}</pre></div>
+    <div id="aiTab1" style="display:none"><div class="codebar"><span>products/backoffice/tests/login/login-valid.spec.ts</span><span>Playwright</span></div><pre class="code">${scriptCode}</pre>
+      <div class="note purple" style="margin-top:12px"><span>♻</span><div>Script calls <b>Page Object methods</b> and reuses the <b>Locator Map</b> — no selectors regenerated. <b>FR-AI-003 · NFR-COST-001</b></div></div></div>
+    <div class="divider"></div>
+    <div class="btn-row">
+      <button class="btn" data-act="toast" data-msg="Regenerating with full context…" data-type="info">↻ Regenerate</button>
+      <button class="btn" data-act="toast" data-msg="Discarded draft" data-type="info">Discard</button>
+      <button class="btn btn-primary" data-act="acceptAI">✓ Accept &amp; commit to branch</button>
+    </div>
+    <div class="note" style="margin-top:10px"><span>⚖</span><div>Human-in-the-loop: nothing is committed or merged without your acceptance. On accept, a branch + PR are created and the case is marked automated only after a passing run. <b>FR-AI-006/008</b></div></div>`);
+}
+function aiTab(i){[0,1].forEach(n=>{const e=$("#aiTab"+n);if(e)e.style.display=n===i?'block':'none';});[...document.querySelectorAll('#aiTabs button')].forEach((b,n)=>b.classList.toggle('active',n===i));}
+function acceptAI(){closeOverlays();toast('Accepted · branch feat/bo-login-001 created · PR opened','success');}
+
+/* ============================================================
+   VIEW: EXECUTION CENTER
+   ============================================================ */
+function viewRuns(){
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Execution Center</div>
+    <div class="page-sub">Runs are executed by Playwright workers — not by AI. Schedule, watch live status, and inspect per-case results &amp; artifacts. <b>FR-EXEC-001…007</b></div></div>
+    <button class="btn btn-primary" data-act="openNewRun">▶ New run</button>
+  </div>
+  <div class="card"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Run ID</th><th>Env</th><th>Result</th><th>Cases</th><th>Pass / Fail / Skip</th><th>Duration</th><th>Triggered by</th><th>Started</th><th></th></tr></thead>
+    <tbody>${DB.runs.map(r=>`
+      <tr class="clickable" data-act="openRun" data-a="${r.id}">
+        <td class="cell-id">${r.id}</td>
+        <td><span class="chip">${r.env}</span></td>
+        <td>${tag(r.status,RUN_TAG[r.status])}</td>
+        <td>${r.total}</td>
+        <td><span style="color:#52c41a">${r.pass}✓</span> <span style="color:#ff4d4f">${r.fail}✕</span> <span class="muted">${r.skip}⊘</span></td>
+        <td class="muted">${r.dur}</td>
+        <td>${esc(r.by)}</td>
+        <td class="muted">${r.started}</td>
+        <td class="muted">→</td>
+      </tr>`).join("")}
+    </tbody></table></div></div>`);
+}
+function openNewRun(){
+  const cs=filteredCases().filter(c=>c.status==='automated');
+  openModal("Schedule a new run",`
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1"><label>Environment</label>
+        <div class="select-wrap" style="width:100%"><select style="width:100%"><option>staging</option><option>qa</option><option>dev</option></select></div></div>
+      <div class="field" style="flex:1"><label>Worker</label>
+        <div class="select-wrap" style="width:100%"><select style="width:100%"><option>Docker pool (4 workers)</option><option>CI pipeline</option></select></div></div>
+    </div>
+    <div class="section-title" style="font-size:14px">Select cases (automated)</div>
+    ${cs.length?cs.map(c=>`<label class="check"><input type="checkbox" checked><div class="meta"><b>${c.id}</b> ${esc(c.title)}<small>${esc(c.module)} · linked ${c.script}</small></div>${tag(c.priority,PRIO_TAG[c.priority])}</label>`).join(""):'<div class="empty">No automated cases for this product yet.</div>'}
+    <div class="note warn" style="margin-top:8px"><span>⚠</span><div>Production targets require explicit authorized confirmation and are audit-logged. <b>FR-EXEC-007</b></div></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="startRun">▶ Start run (${cs.length} cases)</button>`);
+}
+function startRun(){closeOverlays();toast('Run queued → dispatched to Docker worker pool','success');setTimeout(()=>toast('RUN-2043 now running…','info'),900);}
+function openRun(id){
+  const r=DB.runs.find(x=>x.id===id);
+  const results=r.results.length?r.results:(r._synth||(r._synth=Array.from({length:r.total},(_,i)=>({case:'CASE-'+(i+1),status:i<r.pass?'pass':(i<r.pass+r.fail?'fail':'skip'),dur:(3+Math.random()*3).toFixed(1)+'s'}))));
+  const body=`
+    <div class="between" style="margin-bottom:12px">
+      <div><div class="cell-id">${r.id}</div><div class="muted" style="margin-top:3px">${r.env} · ${r.started} · ${esc(r.by)}</div></div>
+      ${tag(r.status,RUN_TAG[r.status])}
+    </div>
+    <div class="row" style="gap:8px;margin-bottom:14px">
+      <div class="card card-pad" style="flex:1;text-align:center;padding:10px"><div class="muted" style="font-size:12px">Total</div><div class="strong" style="font-size:18px">${r.total}</div></div>
+      <div class="card card-pad" style="flex:1;text-align:center;padding:10px;background:#f6ffed"><div class="muted" style="font-size:12px">Passed</div><div class="strong" style="font-size:18px;color:#389e0d">${r.pass}</div></div>
+      <div class="card card-pad" style="flex:1;text-align:center;padding:10px;background:${r.fail?'#fff2f0':'#fff'}"><div class="muted" style="font-size:12px">Failed</div><div class="strong" style="font-size:18px;color:#ff4d4f">${r.fail}</div></div>
+      <div class="card card-pad" style="flex:1;text-align:center;padding:10px"><div class="muted" style="font-size:12px">Duration</div><div class="strong" style="font-size:18px">${r.dur}</div></div>
+    </div>
+    <div class="section-title" style="font-size:14px">Per-case results</div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Case</th><th>Status</th><th>Duration</th><th>Artifacts</th></tr></thead>
+      <tbody>${results.map(rr=>`
+        <tr>
+          <td class="cell-id">${rr.case}</td>
+          <td>${tag(rr.status,RES_TAG[rr.status])}</td>
+          <td class="muted">${rr.dur}</td>
+          <td>${rr.status==='fail'?`<a style="cursor:pointer;color:#1677ff" data-act="openFailure" data-a="${r.id}" data-b="${rr.case}">trace · screenshot · analyze →</a>`:rr.status==='pass'?'<span class="muted">trace · video</span>':'<span class="muted">—</span>'}</td>
+        </tr>`).join("")}
+      </tbody></table></div>`;
+  openDrawer("Run detail",body,
+    `<button class="btn" data-act="toast" data-msg="Re-running failed cases…" data-type="info">↻ Re-run failed</button><button class="btn btn-primary" data-act="toast" data-msg="Downloading report bundle (HTML + traces)" data-type="info">⤓ Download report</button>`);
+}
+function openFailure(runId,caseId){
+  const r=DB.runs.find(x=>x.id===runId);const rr=r.results.find(x=>x.case===caseId)||{};
+  openModal("Failure analysis — "+caseId,`
+    <div class="between" style="margin-bottom:10px"><span class="cell-id">${caseId}</span>${tag('fail','tag-red')}</div>
+    <dl class="dl">
+      <dt>Classification</dt><dd>${tag(rr.cat||'Script bug','tag-orange')} <span class="muted">(distinguishes product bug / script / data / env / flaky)</span></dd>
+      <dt>Script</dt><dd class="cell-id">${rr.script||'—'}</dd>
+    </dl>
+    <div class="section-title" style="font-size:14px;margin-top:14px">Error</div>
+    <pre class="code"><span class="c">${esc(rr.err||'Assertion failed')}</span></pre>
+    <div class="note purple" style="margin-top:12px"><span>✦</span><div><b>AI repair context (scoped):</b> failed step + error log + relevant locators + code snippet + trace summary + cropped screenshot only. <b>Full HTML / full screenshot excluded.</b> <b>FR-AI-007 · NFR-COST-002</b></div></div>
+    <div class="section-title" style="font-size:14px;margin-top:14px">Suggested patch</div>
+    <pre class="code"><span class="c">// wait for lockout banner before locating the button</span>
+<span class="k">await</span> page.getByText(<span class="s">'Account locked'</span>).waitFor();
+<span class="k">await</span> expect(loginPage.signInButton).toBeHidden();</pre>
+  `,`<button class="btn" data-act="close">Dismiss</button><button class="btn btn-primary" data-act="toastClose" data-msg="Repair PR opened on fix/login-003-lockout" data-type="success">✓ Accept patch → open PR</button>`);
+}
+
+/* ============================================================
+   VIEW: COVERAGE DASHBOARD
+   ============================================================ */
+function viewCoverage(){
+  const cov=DB.coverage;
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Coverage Dashboard</div>
+    <div class="page-sub">Multi-dimensional coverage across requirements, pages, features, roles, workflows &amp; historical bugs — plus AI-ranked gaps. <b>FR-COV-001…005</b></div></div>
+  </div>
+  <div class="row" style="align-items:stretch">
+    <div class="card card-pad" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+      <div class="ring-wrap"><div class="ring" style="background:conic-gradient(#1677ff 73%,#f5f5f5 0)"><b>73%</b></div></div>
+      <div class="strong" style="margin-top:12px">Overall coverage</div>
+      <div class="muted" style="font-size:12px">manual + automated, ${CURRENT_PRODUCT==='all'?'all products':esc(CURRENT_PRODUCT)}</div>
+    </div>
+    <div class="card card-pad" style="flex:2.4;min-width:340px">
+      <div class="section-title">Coverage by dimension</div>
+      <div class="stack" style="gap:13px">
+        ${cov.byDimension.map(d=>{const pct=Math.round(d.covered/d.total*100);const cls=pct>=75?'green':pct>=50?'orange':'red';
+          return `<div><div class="between" style="margin-bottom:5px"><span>${d.dim}</span><span class="muted">${d.covered}/${d.total} · <b style="color:#262626">${pct}%</b></span></div><div class="bar ${cls}"><i style="width:${pct}%"></i></div></div>`;}).join("")}
+      </div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:16px;align-items:flex-start">
+    <div class="card card-pad" style="flex:2;min-width:340px">
+      <div class="between"><div class="section-title" style="margin:0">Coverage gaps (AI-ranked)</div><span class="muted">${cov.gaps.length} gaps</span></div>
+      <div class="page-sub" style="margin:4px 0 12px">Ranked by risk &amp; value. AI can recommend a high-value test that reuses existing assets. <b>FR-COV-003/004</b></div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Ref</th><th>Gap</th><th>Dimension</th><th>Risk</th><th></th></tr></thead>
+        <tbody>${cov.gaps.map((g,i)=>`
+          <tr>
+            <td class="cell-id">${esc(g.ref)}</td>
+            <td><div class="strong">${esc(g.title)}</div><small class="muted">${esc(g.reason)}</small></td>
+            <td><span class="chip">${g.dim}</span></td>
+            <td>${tag(g.risk,RISK_TAG[g.risk])}</td>
+            <td><button class="btn btn-sm" data-act="recommendGap" data-a="${i}">✦ Recommend</button></td>
+          </tr>`).join("")}
+        </tbody></table></div>
+    </div>
+    <div class="card card-pad" style="flex:1;min-width:260px">
+      <div class="section-title">Status breakdown</div>
+      ${composition()}
+      <div class="divider"></div>
+      <div class="section-title">Pass / fail (latest)</div>
+      <div class="between" style="margin-bottom:6px"><span>${tag('passed','tag-green')}</span><span class="strong">94.2%</span></div>
+      <div class="bar green"><i style="width:94%"></i></div>
+      <div class="between" style="margin:10px 0 6px"><span>${tag('failed','tag-red')}</span><span class="strong">5.8%</span></div>
+      <div class="bar red"><i style="width:6%"></i></div>
+      <div class="note purple" style="margin-top:14px"><span>♻</span><div><b>Reuse index:</b> 38% of new requests resolved from the semantic cache without a model call this month.</div></div>
+    </div>
+  </div>`);
+}
+function recommendGap(i){
+  const g=DB.coverage.gaps[i];
+  openModal("AI coverage recommendation",`
+    <div class="between" style="margin-bottom:10px"><span class="cell-id">${esc(g.ref)}</span>${tag(g.risk+' risk',RISK_TAG[g.risk])}</div>
+    <div class="strong" style="font-size:16px">${esc(g.title)}</div>
+    <div class="note purple" style="margin-top:12px"><span>✦</span><div>AI suggests generating a new case that reuses <b>2 similar assets</b> (PAGE-LOGIN profile, golden script style) — estimated <b>~610 tokens</b>, ~85% below full-HTML baseline.</div></div>
+    <div class="section-title" style="font-size:14px;margin-top:14px">Proposed case</div>
+    <pre class="code"><span class="f">"title"</span>: <span class="s">"${esc(g.title)}"</span>,
+<span class="f">"type"</span>: <span class="s">"Negative"</span>,
+<span class="f">"reuses"</span>: [<span class="s">"PAGE-LOGIN"</span>, <span class="s">"golden:SCRIPT-BO-LOGIN-001"</span>],
+<span class="f">"closes_gap"</span>: <span class="s">"${esc(g.ref)}"</span></pre>
+  `,`<button class="btn" data-act="close">Dismiss</button><button class="btn btn-primary" data-act="gapToAI" data-a="${esc(g.ref)}">✦ Open in AI Workspace</button>`);
+}
+
+/* ============================================================
+   EVENT DELEGATION  (no inline handlers -> sanitizer-safe)
+   ============================================================ */
+const ACTIONS={
+  nav:ds=>{location.hash=ds.a;},
+  close:()=>closeOverlays(),
+  closeNav:ds=>{closeOverlays();location.hash=ds.a;},
+  gotoRunDetail:ds=>{location.hash='runs';setTimeout(()=>openRun(ds.a),80);},
+  openCase:ds=>openCase(ds.a),
+  openPage:ds=>openPage(ds.a),
+  openScript:ds=>openScript(ds.a),
+  openRun:ds=>openRun(ds.a),
+  openFailure:ds=>openFailure(ds.a,ds.b),
+  openImport:()=>openImport(),
+  openDedupe:()=>openDedupe(),
+  openNewRun:()=>openNewRun(),
+  importDo:()=>{closeOverlays();toast('Imported 40 cases · 2 flagged for review','success');},
+  mergeDo:()=>{closeOverlays();toast('Merged into BO-LOGIN-002 · coverage links preserved','success');},
+  caseFilter:ds=>{caseFilter=ds.a;renderCaseTable();syncSeg();},
+  aiTab:ds=>aiTab(+ds.a),
+  runGeneration:()=>runGeneration(),
+  acceptAI:()=>acceptAI(),
+  startRun:()=>startRun(),
+  recommendGap:ds=>recommendGap(+ds.a),
+  gapToAI:ds=>{closeOverlays();location.hash='ai';toast('Loaded gap '+ds.a+' into AI Workspace','info');},
+  aiClean:ds=>toast('AI proposed expected results for '+ds.a+' — awaiting your acceptance','info'),
+  genFromCase:ds=>{closeOverlays();location.hash='ai';toast('Loaded '+ds.a+' into AI Workspace','info');},
+  toast:ds=>toast(ds.msg,ds.type||'info'),
+  toastClose:ds=>{closeOverlays();toast(ds.msg,ds.type||'success');}
+};
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-act]');
+  if(!t)return;
+  const fn=ACTIONS[t.dataset.act];
+  if(fn){ if(t.tagName==='A'&&!t.getAttribute('href'))e.preventDefault(); fn(t.dataset); }
+});
+document.addEventListener('input',e=>{
+  if(e.target.id==='caseSearchInput'){caseSearch=e.target.value;renderCaseTable();}
+});
+document.addEventListener('change',e=>{
+  if(e.target.id==='productSel'){CURRENT_PRODUCT=e.target.value;route();}
+  else if(e.target.dataset && e.target.dataset.ctx!==undefined){aiContext[+e.target.dataset.ctx].on=e.target.checked;renderCtx();}
+});
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+if(!location.hash)location.hash="dashboard";
+route();
+</script>
+</body>
+</html>
