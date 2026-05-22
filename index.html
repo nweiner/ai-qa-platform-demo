@@ -216,6 +216,31 @@
   .divider{height:1px;background:var(--border);margin:18px 0}
   .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--primary-border);border-top-color:var(--primary);border-radius:50%;animation:sp .7s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
+  /* execution center: plans, live console & AI monitor */
+  .modal.wide{width:940px}
+  .plan-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text-3);margin:10px 0}
+  .plan-meta b{color:var(--text-2);font-weight:600}
+  .console{display:flex;gap:16px;align-items:stretch}
+  .console .con-main{flex:1.25;min-width:0;display:flex;flex-direction:column}
+  .console .con-ai{flex:1;background:#0d1117;border-radius:8px;display:flex;flex-direction:column;min-width:0;border:1px solid #30363d}
+  .con-ai-head{color:#c9d1d9;font-size:12px;font-weight:600;padding:10px 14px;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:7px}
+  .con-ai-head .live{margin-left:auto;font-size:11px;color:#7ee787;display:flex;align-items:center;gap:5px}
+  .con-ai-head .live::before{content:"";width:7px;height:7px;border-radius:50%;background:#7ee787;animation:pulse 1.2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .con-ai-log{padding:12px 14px;overflow:auto;max-height:48vh;font-family:"SF Mono",Menlo,monospace;font-size:12px;line-height:1.65;color:#c9d1d9;flex:1}
+  .ai-line{display:flex;gap:8px;margin-bottom:7px;animation:tin .2s}
+  .ai-line .ai-ic{flex-shrink:0}
+  .ai-line.ok .ai-ic{color:#7ee787} .ai-line.warn .ai-ic{color:#f0b72f} .ai-line.diag .ai-ic{color:#d2a8ff} .ai-line.fix .ai-ic{color:#56d4dd} .ai-line.info .ai-ic{color:#58a6ff}
+  .ai-line.diag,.ai-line.fix{background:#161b22;border-radius:6px;padding:6px 8px;margin-left:-6px;margin-right:-6px}
+  .ai-line.diag b,.ai-line.fix b{color:#fff}
+  .con-cases{overflow:auto;max-height:48vh;margin-top:4px}
+  .con-case{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:7px;margin-bottom:7px;transition:.2s}
+  .con-case.running{border-color:var(--primary-border);background:var(--primary-bg)}
+  .con-case.fail{border-color:var(--error-border);background:var(--error-bg)}
+  .con-case .cid{font-family:"SF Mono",Menlo,monospace;font-size:12px;color:var(--primary);width:122px;flex-shrink:0}
+  .con-case .ct{flex:1;font-size:13px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .report-sec{margin-bottom:18px}
+  @media(max-width:760px){.console{flex-direction:column}.con-ai-log,.con-cases{max-height:220px}}
   @media(max-width:920px){
     .sidebar{transform:translateX(-100%)} .main{margin-left:0} .kpis{grid-template-columns:repeat(2,1fr)}
   }
@@ -344,6 +369,11 @@ const DB = {
     {id:"RUN-2040",env:"qa",status:"passed",total:6,pass:6,fail:0,skip:0,started:"2026-05-21 11:30",dur:"2m 20s",by:"CI Pipeline",results:[]},
     {id:"RUN-2039",env:"staging",status:"failed",total:7,pass:5,fail:1,skip:1,started:"2026-05-20 16:45",dur:"3m 40s",by:"QA Engineer",results:[]}
   ],
+  plans:[
+    {id:"PLAN-001",name:"Back Office — Smoke",desc:"Critical auth + user paths, runs every deploy",product:"Back Office",caseIds:["BO-LOGIN-001","BO-LOGIN-002","BO-LOGIN-003","BO-USER-001"],env:"staging",worker:"Docker pool (4 workers)",parallelism:4,retries:1,schedule:{enabled:true,freq:"Daily 02:00",next:"2026-05-23 02:00"},last:{status:"failed",at:"2026-05-22 09:14",runId:"RUN-2042"}},
+    {id:"PLAN-002",name:"Back Office — Full Regression",desc:"All Back Office automated cases",product:"Back Office",caseIds:["BO-LOGIN-001","BO-LOGIN-002","BO-USER-001"],env:"qa",worker:"CI pipeline",parallelism:6,retries:2,schedule:{enabled:true,freq:"Weekly · Mon 01:00",next:"2026-05-25 01:00"},last:{status:"passed",at:"2026-05-21 18:02",runId:"RUN-2041"}},
+    {id:"PLAN-003",name:"Online Order — Checkout",desc:"Guest checkout happy path",product:"Online Order",caseIds:["OO-ORDER-001"],env:"staging",worker:"Docker pool (2 workers)",parallelism:2,retries:1,schedule:{enabled:false,freq:null,next:null},last:{status:null,at:null,runId:null}}
+  ],
   coverage:{
     byDimension:[
       {dim:"Requirements",covered:54,total:74},
@@ -395,11 +425,12 @@ function openDrawer(title,bodyHTML,footHTML){
   $("#overlay").classList.add("open"); d.classList.add("open");
 }
 function openModal(title,bodyHTML,footHTML){
-  const m=$("#modal");
+  const m=$("#modal"); m.classList.remove("wide");
   setHTML(m,`<div class="modal-head"><h3>${esc(title)}</h3><button class="x" data-act="close">✕</button></div>
     <div class="modal-body">${bodyHTML}</div>${footHTML?`<div class="modal-foot">${footHTML}</div>`:''}`);
   $("#overlay").classList.add("open"); m.classList.add("open");
 }
+function openModalWide(title,bodyHTML,footHTML){ openModal(title,bodyHTML,footHTML); $("#modal").classList.add("wide"); }
 function closeOverlays(){["#overlay","#drawer","#modal"].forEach(s=>$(s).classList.remove("open"));}
 function toast(msg,type="success"){
   const ic={success:"✓",error:"✕",info:"ⓘ"}[type]||"✓";
@@ -871,17 +902,56 @@ function acceptAI(){closeOverlays();toast('Accepted · branch feat/bo-login-001 
 /* ============================================================
    VIEW: EXECUTION CENTER
    ============================================================ */
+let execTab='plans', planEditId=null, runSeq=2043, RUNSIM=null;
 function viewRuns(){
   render(`
   <div class="page-head">
     <div><div class="page-title">Execution Center</div>
-    <div class="page-sub">Runs are executed by Playwright workers — not by AI. Schedule, watch live status, and inspect per-case results &amp; artifacts. <b>FR-EXEC-001…007</b></div></div>
-    <button class="btn btn-primary" data-act="openNewRun">▶ New run</button>
+    <div class="page-sub">Build reusable test plans, run them on demand or on a schedule, and let the AI monitor diagnose failures live and write the report. <b>FR-PLAN · FR-EXEC · FR-EXEC-MON · FR-EXEC-RPT</b></div></div>
+    <button class="btn btn-primary" data-act="openNewPlan">+ New test plan</button>
   </div>
-  <div class="card"><div class="tbl-wrap"><table class="tbl">
-    <thead><tr><th>Run ID</th><th>Env</th><th>Result</th><th>Cases</th><th>Pass / Fail / Skip</th><th>Duration</th><th>Triggered by</th><th>Started</th><th></th></tr></thead>
+  <div class="tabs" id="execTabs">
+    <button class="${execTab==='plans'?'active':''}" data-act="execTab" data-a="plans">Test Plans</button>
+    <button class="${execTab==='history'?'active':''}" data-act="execTab" data-a="history">Run History</button>
+  </div>
+  <div id="execBody"></div>`);
+  renderExecBody();
+}
+function renderExecBody(){ const b=$("#execBody"); if(b)setHTML(b, execTab==='plans'?plansTabHTML():historyTabHTML()); }
+
+function plansTabHTML(){
+  const plans=CURRENT_PRODUCT==='all'?DB.plans:DB.plans.filter(p=>p.product===CURRENT_PRODUCT);
+  if(!plans.length)return '<div class="card card-pad"><div class="empty">No saved test plans for this product yet. Click “+ New test plan” to build one.</div></div>';
+  return `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))">
+    ${plans.map(p=>`
+      <div class="card card-pad">
+        <div class="between"><span class="cell-id">${p.id}</span>${p.schedule.enabled?`<span class="tag tag-purple">⏰ ${esc(p.schedule.freq)}</span>`:'<span class="tag tag-gray">manual</span>'}</div>
+        <div class="strong" style="font-size:16px;margin:8px 0 2px">${esc(p.name)}</div>
+        <div class="muted" style="font-size:12px">${esc(p.desc)}</div>
+        <div class="plan-meta">
+          <span>▤ <b>${p.caseIds.length}</b> cases</span>
+          <span>⛁ <b>${esc(p.env)}</b></span>
+          <span>⚙ <b>${esc(p.worker)}</b></span>
+          <span>↻ <b>${p.retries}</b> retries</span>
+        </div>
+        ${p.schedule.enabled?`<div class="muted" style="font-size:12px">Next run: <b style="color:var(--text)">${p.schedule.next}</b></div>`:''}
+        <div style="font-size:12px;margin-top:6px">Last: ${p.last.status?tag(p.last.status,RUN_TAG[p.last.status])+` <span class="muted">${p.last.at}</span>`:'<span class="muted">never run</span>'}</div>
+        <div class="divider"></div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" data-act="runPlan" data-a="${p.id}">▶ Run now</button>
+          <button class="btn btn-sm" data-act="editPlan" data-a="${p.id}">Edit</button>
+          <button class="btn btn-sm" data-act="duplicatePlan" data-a="${p.id}">Duplicate</button>
+          ${p.last.runId?`<button class="btn btn-sm" data-act="openReport" data-a="${p.last.runId}">✦ AI report</button>`:''}
+          <button class="btn btn-sm btn-danger" data-act="deletePlan" data-a="${p.id}">Delete</button>
+        </div>
+      </div>`).join("")}
+  </div>`;
+}
+function historyTabHTML(){
+  return `<div class="card"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Run ID</th><th>Env</th><th>Result</th><th>Cases</th><th>Pass / Fail / Skip</th><th>Duration</th><th>Triggered by</th><th>Started</th><th>AI</th><th></th></tr></thead>
     <tbody>${DB.runs.map(r=>`
-      <tr class="clickable" data-act="openRun" data-a="${r.id}">
+      <tr>
         <td class="cell-id">${r.id}</td>
         <td><span class="chip">${r.env}</span></td>
         <td>${tag(r.status,RUN_TAG[r.status])}</td>
@@ -890,25 +960,183 @@ function viewRuns(){
         <td class="muted">${r.dur}</td>
         <td>${esc(r.by)}</td>
         <td class="muted">${r.started}</td>
-        <td class="muted">→</td>
+        <td><a style="cursor:pointer;color:#1677ff" data-act="openReport" data-a="${r.id}">✦ report</a></td>
+        <td><a class="muted" style="cursor:pointer" data-act="openRun" data-a="${r.id}">details →</a></td>
       </tr>`).join("")}
-    </tbody></table></div></div>`);
+    </tbody></table></div></div>`;
 }
-function openNewRun(){
-  const cs=filteredCases().filter(c=>c.status==='automated');
-  openModal("Schedule a new run",`
+
+/* ---- Build / edit a test plan ---- */
+function openNewPlan(){ planEditId=null; planWizard(null); }
+function editPlan(id){ planEditId=id; planWizard(DB.plans.find(p=>p.id===id)); }
+function planWizard(p){
+  const cs=(CURRENT_PRODUCT==='all'?DB.cases:DB.cases.filter(c=>c.product===CURRENT_PRODUCT)).filter(c=>c.status!=='manual');
+  const sched=p&&p.schedule.enabled;
+  openModal((p?'Edit':'New')+' test plan',`
+    <div class="field"><label>Plan name</label><input id="planName" value="${p?esc(p.name):''}" placeholder="e.g. Back Office — Smoke"></div>
+    <div class="field"><label>Description</label><input id="planDesc" value="${p?esc(p.desc):''}" placeholder="What this suite covers"></div>
     <div class="row" style="gap:12px">
-      <div class="field" style="flex:1"><label>Environment</label>
-        <div class="select-wrap" style="width:100%"><select style="width:100%"><option>staging</option><option>qa</option><option>dev</option></select></div></div>
-      <div class="field" style="flex:1"><label>Worker</label>
-        <div class="select-wrap" style="width:100%"><select style="width:100%"><option>Docker pool (4 workers)</option><option>CI pipeline</option></select></div></div>
+      <div class="field" style="flex:1;margin-bottom:10px"><label>Environment</label><div class="select-wrap" style="width:100%"><select id="planEnv" style="width:100%">${['staging','qa','dev'].map(e=>`<option ${p&&p.env===e?'selected':''}>${e}</option>`).join('')}</select></div></div>
+      <div class="field" style="flex:1;margin-bottom:10px"><label>Worker</label><div class="select-wrap" style="width:100%"><select id="planWorker" style="width:100%">${['Docker pool (4 workers)','Docker pool (2 workers)','CI pipeline'].map(w=>`<option ${p&&p.worker===w?'selected':''}>${w}</option>`).join('')}</select></div></div>
+      <div class="field" style="width:88px;margin-bottom:10px"><label>Retries</label><input id="planRetries" type="number" min="0" max="5" value="${p?p.retries:1}"></div>
     </div>
-    <div class="section-title" style="font-size:14px">Select cases (automated)</div>
-    ${cs.length?cs.map(c=>`<label class="check"><input type="checkbox" checked><div class="meta"><b>${c.id}</b> ${esc(c.title)}<small>${esc(c.module)} · linked ${c.script}</small></div>${tag(c.priority,PRIO_TAG[c.priority])}</label>`).join(""):'<div class="empty">No automated cases for this product yet.</div>'}
-    <div class="note warn" style="margin-top:8px"><span>⚠</span><div>Production targets require explicit authorized confirmation and are audit-logged. <b>FR-EXEC-007</b></div></div>
-  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="startRun">▶ Start run (${cs.length} cases)</button>`);
+    <div class="section-title" style="font-size:14px">Cases <span class="muted" style="font-weight:400">(automated &amp; candidates)</span></div>
+    ${cs.length?cs.map(c=>`<label class="check"><input type="checkbox" data-plancase="${c.id}" ${(p?p.caseIds.includes(c.id):true)?'checked':''}><div class="meta"><b>${c.id}</b> ${esc(c.title)}<small>${esc(c.module)} · ${c.status}</small></div>${tag(c.priority,PRIO_TAG[c.priority])}</label>`).join(''):'<div class="empty">No automatable cases for this product.</div>'}
+    <div class="divider"></div>
+    <label class="check" style="cursor:pointer"><input type="checkbox" id="planSched" ${sched?'checked':''}><div class="meta"><b>Run on a schedule</b><small>Execute automatically (e.g. nightly regression). Otherwise on-demand only.</small></div></label>
+    <div id="schedOpts" style="display:${sched?'block':'none'};padding:4px 0 0 8px">
+      <div class="field" style="margin-bottom:0"><label>Frequency</label><div class="select-wrap" style="width:100%"><select id="planFreq" style="width:100%">${['Hourly','Daily 02:00','Weekly · Mon 01:00','Custom cron…'].map(f=>`<option ${p&&p.schedule.freq===f?'selected':''}>${f}</option>`).join('')}</select></div></div>
+    </div>
+    <div class="note warn" style="margin-top:12px"><span>⚠</span><div>Production targets require explicit authorized confirmation and are audit-logged. <b>FR-EXEC-007</b></div></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="savePlan">${p?'Save changes':'Save plan'}</button>`);
 }
-function startRun(){closeOverlays();toast('Run queued → dispatched to Docker worker pool','success');setTimeout(()=>toast('RUN-2043 now running…','info'),900);}
+function savePlan(){
+  const name=$("#planName").value.trim()||"Untitled plan";
+  const caseIds=[...document.querySelectorAll('[data-plancase]:checked')].map(el=>el.dataset.plancase);
+  if(!caseIds.length){toast('Select at least one case','error');return;}
+  const schedOn=$("#planSched").checked;
+  const obj={
+    name, desc:$("#planDesc").value.trim()||"—",
+    product:CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT,
+    caseIds, env:$("#planEnv").value, worker:$("#planWorker").value,
+    parallelism:4, retries:+$("#planRetries").value||0,
+    schedule:{enabled:schedOn,freq:schedOn?$("#planFreq").value:null,next:schedOn?'2026-05-23 02:00':null}
+  };
+  if(planEditId){ Object.assign(DB.plans.find(x=>x.id===planEditId),obj); toast('Plan '+planEditId+' updated','success'); }
+  else{ obj.id='PLAN-'+String(DB.plans.length+1).padStart(3,'0'); obj.last={status:null,at:null,runId:null}; DB.plans.push(obj); toast('Test plan saved — re-run it anytime','success'); }
+  planEditId=null; closeOverlays(); execTab='plans'; renderExecBody();
+}
+function duplicatePlan(id){
+  const p=DB.plans.find(x=>x.id===id), copy=JSON.parse(JSON.stringify(p));
+  copy.id='PLAN-'+String(DB.plans.length+1).padStart(3,'0'); copy.name=p.name+' (copy)';
+  copy.schedule={enabled:false,freq:null,next:null}; copy.last={status:null,at:null,runId:null};
+  DB.plans.push(copy); renderExecBody(); toast('Duplicated as '+copy.id,'success');
+}
+function deletePlan(id){
+  openModal('Delete test plan?',`<div class="note warn"><span>⚠</span><div>This removes <b>${id}</b> and its schedule. Run history is kept. This cannot be undone.</div></div>`,
+    `<button class="btn" data-act="close">Cancel</button><button class="btn btn-danger" data-act="deletePlanConfirm" data-a="${id}">Delete plan</button>`);
+}
+function deletePlanConfirm(id){ DB.plans=DB.plans.filter(p=>p.id!==id); closeOverlays(); renderExecBody(); toast(id+' deleted','success'); }
+
+/* ---- Live run console + AI monitor ---- */
+function runPlan(id){ startConsole(DB.plans.find(p=>p.id===id)); }
+function startConsole(plan){
+  RUNSIM={plan, cases:plan.caseIds.map(cid=>({id:cid,title:(DB.cases.find(c=>c.id===cid)||{}).title||cid,status:'queued',dur:null})), ai:[], done:false};
+  openModalWide('Live run · '+plan.name, consoleHTML(), '');
+  pushAI('info','Monitor initialized. Watching '+RUNSIM.cases.length+' cases on '+plan.env+' · '+plan.worker+'.');
+  setTimeout(()=>stepRun(0),650);
+}
+function consoleHTML(){
+  return `<div class="muted" style="font-size:12px;margin-bottom:10px">Executed by Playwright workers — the AI monitor observes the stream and diagnoses anomalies in real time. <b>FR-EXEC-MON</b></div>
+  <div class="console">
+    <div class="con-main">
+      <div class="between" style="margin-bottom:8px"><span class="strong">Progress</span><span id="conStatus">${tag('running','tag-blue')}</span></div>
+      <div class="bar"><i id="conBar" style="width:0%;transition:.4s"></i></div>
+      <div class="con-cases" id="conCases" style="margin-top:12px"></div>
+    </div>
+    <div class="con-ai">
+      <div class="con-ai-head">✦ AI Monitor &amp; Diagnosis <span class="live" id="conLive">live</span></div>
+      <div class="con-ai-log" id="conAI"></div>
+    </div>
+  </div>
+  <div id="conFoot" style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px"></div>`;
+}
+function renderConsole(){
+  const cc=$("#conCases"); if(!cc)return;
+  setHTML(cc, RUNSIM.cases.map(c=>{
+    const icon=c.status==='pass'?'<span style="color:#52c41a">✓</span>':c.status==='fail'?'<span style="color:#ff4d4f">✕</span>':c.status==='running'?'<span class="spin"></span>':'<span class="muted">◷</span>';
+    return `<div class="con-case ${c.status}"><span>${icon}</span><span class="cid">${c.id}</span><span class="ct">${esc(c.title)}</span><span class="muted" style="font-size:12px">${c.dur||(c.status==='running'?'running…':'queued')}</span></div>`;
+  }).join(""));
+  const done=RUNSIM.cases.filter(c=>c.status==='pass'||c.status==='fail').length;
+  const bar=$("#conBar"); if(bar)bar.style.width=Math.round(done/RUNSIM.cases.length*100)+'%';
+}
+function renderAI(){
+  const log=$("#conAI"); if(!log)return;
+  setHTML(log, RUNSIM.ai.map(l=>`<div class="ai-line ${l.lvl}"><span class="ai-ic">${({info:'▸',ok:'✓',warn:'⚠',diag:'🧠',fix:'💡'}[l.lvl])}</span><span>${l.html}</span></div>`).join(""));
+  log.scrollTop=log.scrollHeight;
+}
+function pushAI(lvl,html){ if(!RUNSIM)return; RUNSIM.ai.push({lvl,html}); renderAI(); }
+function stepRun(i){
+  if(!RUNSIM||!$("#conCases"))return;
+  if(i>=RUNSIM.cases.length){ finishRun(); return; }
+  const c=RUNSIM.cases[i];
+  c.status='running'; renderConsole();
+  setTimeout(()=>{
+    if(!$("#conCases"))return;
+    const fails = c.id==='BO-LOGIN-003';
+    c.status=fails?'fail':'pass'; c.dur=(3+Math.random()*3).toFixed(1)+'s'; renderConsole();
+    if(fails){
+      pushAI('warn',`<b>${c.id}</b> failed — <span style="color:#ff7b72">TimeoutError</span> locating <b>Login.signInButton</b>. Cross-referencing trace + Locator Map…`);
+      setTimeout(()=>pushAI('diag',`<b>Diagnosis:</b> the element detaches after the “Account locked” banner renders. Root cause = <b>stale locator (Script bug)</b>, not a product defect. Confidence 0.86.`),520);
+      setTimeout(()=>pushAI('fix',`<b>Suggested fix:</b> await <code>getByText('Account locked')</code>, then assert Sign In hidden. Skipping flaky retry to save ~6s.`),1080);
+      setTimeout(()=>stepRun(i+1),1650);
+    }else{
+      const notes={'BO-LOGIN-001':'Login happy-path nominal — no baseline drift.','BO-LOGIN-002':'Negative-path rejection correct.','BO-USER-001':'User CRUD nominal; no perf regression.'};
+      pushAI('ok',`<b>${c.id}</b> passed (${c.dur}). ${notes[c.id]||'Nominal.'}`);
+      setTimeout(()=>stepRun(i+1),700);
+    }
+  },850);
+}
+function finishRun(){
+  RUNSIM.done=true;
+  const pass=RUNSIM.cases.filter(c=>c.status==='pass').length, fail=RUNSIM.cases.filter(c=>c.status==='fail').length;
+  const status=fail?'failed':'passed';
+  const live=$("#conLive"); if(live)live.remove();
+  const st=$("#conStatus"); if(st)setHTML(st,tag(status,RUN_TAG[status]));
+  pushAI('info',`Run complete — ${pass}/${RUNSIM.cases.length} passed.${fail?` ${fail} issue isolated &amp; explained.`:' All green.'} Report ready.`);
+  const runId='RUN-'+(runSeq++);
+  const results=RUNSIM.cases.map(c=>({case:c.id,script:(DB.cases.find(x=>x.id===c.id)||{}).script||null,status:c.status,dur:c.dur,
+    err:c.status==='fail'?'TimeoutError: locator.click: Login.signInButton not found after lockout banner rendered':undefined,
+    cat:c.status==='fail'?'Script bug':undefined}));
+  DB.runs.unshift({id:runId,env:RUNSIM.plan.env,status,total:RUNSIM.cases.length,pass,fail,skip:0,started:'just now',dur:'~'+(RUNSIM.cases.length*4)+'s',by:'Plan: '+RUNSIM.plan.name,results,planId:RUNSIM.plan.id});
+  RUNSIM.plan.last={status,at:'just now',runId};
+  const foot=$("#conFoot"); if(foot)setHTML(foot,`<button class="btn" data-act="close">Close</button><button class="btn btn-primary" data-act="openReport" data-a="${runId}">✦ Generate AI report</button>`);
+}
+
+/* ---- AI execution report ---- */
+function openReport(runId){
+  const r=DB.runs.find(x=>x.id===runId)||DB.runs[0];
+  const results=r.results&&r.results.length?r.results:Array.from({length:r.total},(_,i)=>({case:'CASE-'+(i+1),status:i<r.pass?'pass':(i<r.pass+r.fail?'fail':'skip')}));
+  const fails=results.filter(x=>x.status==='fail');
+  const rate=Math.round(r.pass/r.total*100);
+  const summary=fails.length
+    ? `<b>${r.pass}/${r.total} passed (${rate}%).</b> ${fails.length} failure isolated to the <b>Authentication</b> module and classified as a <b>script bug</b> — no product regressions detected. Suite health: good. Estimated fix effort: <b>low</b> (single locator wait).`
+    : `<b>${r.pass}/${r.total} passed (100%).</b> No failures, no flaky retries, no baseline drift. Suite is healthy and safe to gate the release.`;
+  const body=`
+    <div class="between" style="margin-bottom:10px"><div><span class="cell-id">${r.id}</span> <span class="muted">· ${r.env} · ${r.started}</span></div>${tag(r.status,RUN_TAG[r.status])}</div>
+    <div class="note purple report-sec"><span>✦</span><div><b>Executive summary (AI-generated)</b><br>${summary}</div></div>
+    <div class="report-sec">
+      <div class="section-title" style="font-size:14px">Results</div>
+      <div class="row" style="gap:8px">
+        <div class="card card-pad" style="flex:1;text-align:center;padding:10px"><div class="muted" style="font-size:12px">Pass rate</div><div class="strong" style="font-size:18px">${rate}%</div></div>
+        <div class="card card-pad" style="flex:1;text-align:center;padding:10px;background:#f6ffed"><div class="muted" style="font-size:12px">Passed</div><div class="strong" style="font-size:18px;color:#389e0d">${r.pass}</div></div>
+        <div class="card card-pad" style="flex:1;text-align:center;padding:10px;background:${r.fail?'#fff2f0':'#fff'}"><div class="muted" style="font-size:12px">Failed</div><div class="strong" style="font-size:18px;color:#ff4d4f">${r.fail}</div></div>
+        <div class="card card-pad" style="flex:1;text-align:center;padding:10px"><div class="muted" style="font-size:12px">Flaky</div><div class="strong" style="font-size:18px">0</div></div>
+      </div>
+    </div>
+    ${fails.length?`<div class="report-sec">
+      <div class="section-title" style="font-size:14px">Root-cause analysis &amp; fix suggestions</div>
+      ${fails.map(f=>`<div class="card card-pad" style="margin-bottom:10px">
+        <div class="between"><span class="cell-id">${f.case}</span>${tag(f.cat||'Script bug','tag-orange')}</div>
+        <div style="font-size:13px;margin:8px 0"><b>Error:</b> <span class="mono" style="color:#cf1322">${esc(f.err||'Assertion failed')}</span></div>
+        <div style="font-size:13px;margin-bottom:8px"><b>Root cause:</b> the Sign-In button detaches once the “Account locked” banner renders, so the locator resolves to a stale node. Product behaviour is correct — the <i>test</i> doesn't wait for the post-lockout state.</div>
+        <div style="font-size:13px;margin-bottom:6px"><b>Suggested fix</b> (confidence 0.86):</div>
+        <pre class="code"><span class="c">// wait for the lockout state before asserting</span>
+<span class="k">await</span> page.getByText(<span class="s">'Account locked'</span>).waitFor();
+<span class="k">await</span> expect(loginPage.signInButton).toBeHidden();</pre>
+      </div>`).join('')}
+    </div>`:`<div class="note report-sec"><span>✓</span><div>No failures to diagnose. Recent runs trend: stable.</div></div>`}
+    <div class="report-sec">
+      <div class="section-title" style="font-size:14px">Recommendations</div>
+      <ul style="margin:0 0 0 18px;color:var(--text-2);font-size:13px">
+        ${fails.length?`<li>Apply the locator-wait patch and re-run <b>${fails.map(f=>f.case).join(', ')}</b>; open a PR on <span class="mono">fix/login-003-lockout</span>.</li>`:''}
+        <li>Promote this plan to the release gate — pass rate is ${rate}%.</li>
+        <li>Close coverage gap <span class="cell-id">REQ-AUTH-LOGIN-003</span> with a dedicated lockout case.</li>
+      </ul>
+    </div>`;
+  openModalWide('✦ AI execution report — '+r.id, body,
+    `<button class="btn" data-act="toast" data-msg="Report exported (PDF + JSON)" data-type="success">⤓ Export</button><button class="btn" data-act="toast" data-msg="Report link copied — shareable with the team" data-type="success">Share</button>${fails.length?`<button class="btn btn-primary" data-act="toastClose" data-msg="Repair PR opened on fix/login-003-lockout" data-type="success">✓ Accept fix → open PR</button>`:'<button class="btn btn-primary" data-act="close">Done</button>'}`);
+}
 function openRun(id){
   const r=DB.runs.find(x=>x.id===id);
   const results=r.results.length?r.results:(r._synth||(r._synth=Array.from({length:r.total},(_,i)=>({case:'CASE-'+(i+1),status:i<r.pass?'pass':(i<r.pass+r.fail?'fail':'skip'),dur:(3+Math.random()*3).toFixed(1)+'s'}))));
@@ -935,7 +1163,7 @@ function openRun(id){
         </tr>`).join("")}
       </tbody></table></div>`;
   openDrawer("Run detail",body,
-    `<button class="btn" data-act="toast" data-msg="Re-running failed cases…" data-type="info">↻ Re-run failed</button><button class="btn btn-primary" data-act="toast" data-msg="Downloading report bundle (HTML + traces)" data-type="info">⤓ Download report</button>`);
+    `<button class="btn" data-act="toast" data-msg="Re-running failed cases…" data-type="info">↻ Re-run failed</button><button class="btn btn-primary" data-act="openReport" data-a="${r.id}">✦ AI report</button>`);
 }
 function openFailure(runId,caseId){
   const r=DB.runs.find(x=>x.id===runId);const rr=r.results.find(x=>x.case===caseId)||{};
@@ -1038,14 +1266,21 @@ const ACTIONS={
   openFailure:ds=>openFailure(ds.a,ds.b),
   openImport:()=>openImport(),
   openDedupe:()=>openDedupe(),
-  openNewRun:()=>openNewRun(),
+  execTab:ds=>{execTab=ds.a;renderExecBody();[...document.querySelectorAll('#execTabs button')].forEach(b=>b.classList.toggle('active',b.dataset.a===ds.a));},
+  openNewPlan:()=>openNewPlan(),
+  editPlan:ds=>editPlan(ds.a),
+  duplicatePlan:ds=>duplicatePlan(ds.a),
+  deletePlan:ds=>deletePlan(ds.a),
+  deletePlanConfirm:ds=>deletePlanConfirm(ds.a),
+  savePlan:()=>savePlan(),
+  runPlan:ds=>runPlan(ds.a),
+  openReport:ds=>openReport(ds.a),
   importDo:()=>{closeOverlays();toast('Imported 40 cases · 2 flagged for review','success');},
   mergeDo:()=>{closeOverlays();toast('Merged into BO-LOGIN-002 · coverage links preserved','success');},
   caseFilter:ds=>{caseFilter=ds.a;renderCaseTable();syncSeg();},
   aiTab:ds=>aiTab(+ds.a),
   runGeneration:()=>runGeneration(),
   acceptAI:()=>acceptAI(),
-  startRun:()=>startRun(),
   recommendGap:ds=>recommendGap(+ds.a),
   gapToAI:ds=>{closeOverlays();location.hash='ai';toast('Loaded gap '+ds.a+' into AI Workspace','info');},
   aiClean:ds=>toast('AI proposed expected results for '+ds.a+' — awaiting your acceptance','info'),
@@ -1064,6 +1299,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='productSel'){CURRENT_PRODUCT=e.target.value;route();}
+  else if(e.target.id==='planSched'){const o=$("#schedOpts");if(o)o.style.display=e.target.checked?'block':'none';}
   else if(e.target.dataset && e.target.dataset.ctx!==undefined){aiContext[+e.target.dataset.ctx].on=e.target.checked;renderCtx();}
 });
 
