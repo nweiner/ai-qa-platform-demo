@@ -419,6 +419,25 @@ function setHTML(node,html){ node.innerHTML = (window.DOMPurify ? DOMPurify.sani
 function render(html){ setHTML($("#content"),html); $("#content").scrollTop=0; }
 let CURRENT_PRODUCT="Back Office";
 
+/* ---- persistence: runs/plans/pages survive reloads (localStorage) ---- */
+function nowStamp(){const d=new Date();const p=n=>String(n).padStart(2,'0');return `2026-05-25 ${p(d.getHours())}:${p(d.getMinutes())}`;}
+function persist(){ try{
+  localStorage.setItem('aiqa_runs',JSON.stringify(DB.runs));
+  localStorage.setItem('aiqa_plans',JSON.stringify(DB.plans));
+  localStorage.setItem('aiqa_pages',JSON.stringify(DB.pages));
+}catch(e){} }
+function loadPersisted(){
+  try{
+    const r=localStorage.getItem('aiqa_runs'); if(r){const a=JSON.parse(r); if(Array.isArray(a)&&a.length)DB.runs=a;}
+    const p=localStorage.getItem('aiqa_plans'); if(p){const a=JSON.parse(p); if(Array.isArray(a)&&a.length)DB.plans=a;}
+    const g=localStorage.getItem('aiqa_pages'); if(g){const a=JSON.parse(g); if(Array.isArray(a)&&a.length)DB.pages=a;}
+  }catch(e){}
+  // continue run numbering past the highest saved id to avoid collisions
+  const mx=DB.runs.reduce((m,x)=>{const n=parseInt(String(x.id||'').replace('RUN-',''),10);return isNaN(n)?m:Math.max(m,n);},2042);
+  runSeq=mx+1;
+}
+function resetDemo(){ try{['aiqa_runs','aiqa_plans','aiqa_pages'].forEach(k=>localStorage.removeItem(k));}catch(e){} location.reload(); }
+
 const STATUS_TAG={automated:'tag-green',candidate:'tag-orange',manual:'tag-gray'};
 const PRIO_TAG={High:'tag-red',Medium:'tag-orange',Low:'tag-gray'};
 const RUN_TAG={passed:'tag-green',failed:'tag-red',running:'tag-blue',queued:'tag-gray'};
@@ -906,7 +925,7 @@ function capSave(){
   const obj={id,route:d.route,product:d.product,po,hash:c.hash,drift:false,aria:c.aria,map:c.map.map(m=>[m.key,m.loc])};
   const existing=DB.pages.find(p=>p.id===id);
   if(existing)Object.assign(existing,obj); else DB.pages.push(obj);
-  CAPSTATE=null; closeOverlays();
+  persist(); CAPSTATE=null; closeOverlays();
   toast((existing?'Updated ':'Registered ')+id+' in Page Registry','success');
   if((location.hash.slice(1)||'dashboard')==='pages')viewPages();
 }
@@ -1109,7 +1128,7 @@ function viewRuns(){
   <div id="execBody"></div>`);
   renderExecBody();
 }
-function renderExecBody(){ const b=$("#execBody"); if(b)setHTML(b, execTab==='plans'?plansTabHTML():historyTabHTML()); }
+function renderExecBody(){ const b=$("#execBody"); if(!b)return; if(execTab==='plans'){setHTML(b,plansTabHTML());}else{setHTML(b,historyTabHTML());renderHistTable();} }
 
 function plansTabHTML(){
   const plans=CURRENT_PRODUCT==='all'?DB.plans:DB.plans.filter(p=>p.product===CURRENT_PRODUCT);
@@ -1139,23 +1158,43 @@ function plansTabHTML(){
       </div>`).join("")}
   </div>`;
 }
+let histSearch='', histStatus='all', histEnv='all';
 function historyTabHTML(){
-  return `<div class="card"><div class="tbl-wrap"><table class="tbl">
+  const envs=[...new Set(DB.runs.map(r=>r.env))];
+  return `
+  <div class="toolbar">
+    <div class="search"><span class="si">⌕</span><input id="histSearch" placeholder="Search runs by ID, plan, or env…" value="${esc(histSearch)}"></div>
+    <div class="seg" id="histSeg">${['all','passed','failed','running'].map(s=>`<button class="${histStatus===s?'active':''}" data-act="histStatus" data-a="${s}">${s[0].toUpperCase()+s.slice(1)}</button>`).join('')}</div>
+    <div class="select-wrap"><select id="histEnv"><option value="all">All envs</option>${envs.map(e=>`<option value="${e}" ${histEnv===e?'selected':''}>${e}</option>`).join('')}</select></div>
+    <div class="topbar-spacer"></div>
+    <span class="muted" id="histCount"></span>
+    <button class="btn btn-sm" data-act="resetDemo" title="Clear saved runs/plans and restore the sample data">↺ Reset demo</button>
+  </div>
+  <div class="card"><div class="tbl-wrap" id="histTableHost"></div></div>`;
+}
+function renderHistTable(){
+  let rows=DB.runs.slice();
+  if(histStatus!=='all')rows=rows.filter(r=>r.status===histStatus);
+  if(histEnv!=='all')rows=rows.filter(r=>r.env===histEnv);
+  if(histSearch){const q=histSearch.toLowerCase();rows=rows.filter(r=>(r.id+' '+r.env+' '+(r.by||'')+' '+(r.started||'')).toLowerCase().includes(q));}
+  const cnt=$("#histCount"); if(cnt)cnt.textContent=`${rows.length} of ${DB.runs.length} run${DB.runs.length!==1?'s':''}`;
+  const host=$("#histTableHost"); if(!host)return;
+  setHTML(host,`<table class="tbl">
     <thead><tr><th>Run ID</th><th>Env</th><th>Result</th><th>Cases</th><th>Pass / Fail / Skip</th><th>Duration</th><th>Triggered by</th><th>Started</th><th>AI</th><th></th></tr></thead>
-    <tbody>${DB.runs.map(r=>`
+    <tbody>${rows.length?rows.map(r=>`
       <tr>
         <td class="cell-id">${r.id}</td>
         <td><span class="chip">${r.env}</span></td>
         <td>${tag(r.status,RUN_TAG[r.status])}</td>
         <td>${r.total}</td>
-        <td><span style="color:#52c41a">${r.pass}✓</span> <span style="color:#ff4d4f">${r.fail}✕</span> <span class="muted">${r.skip}⊘</span></td>
+        <td><span style="color:#52c41a">${r.pass}✓</span> <span style="color:#ff4d4f">${r.fail}✕</span> <span class="muted">${r.skip||0}⊘</span></td>
         <td class="muted">${r.dur}</td>
         <td>${esc(r.by)}</td>
         <td class="muted">${r.started}</td>
         <td><a style="cursor:pointer;color:#1677ff" data-act="openReport" data-a="${r.id}">✦ report</a></td>
         <td><a class="muted" style="cursor:pointer" data-act="openRun" data-a="${r.id}">details →</a></td>
-      </tr>`).join("")}
-    </tbody></table></div></div>`;
+      </tr>`).join(""):`<tr><td colspan="10"><div class="empty">No runs match your search.</div></td></tr>`}
+    </tbody></table>`);
 }
 
 /* ---- Build / edit a test plan ---- */
@@ -1196,26 +1235,30 @@ function savePlan(){
   };
   if(planEditId){ Object.assign(DB.plans.find(x=>x.id===planEditId),obj); toast('Plan '+planEditId+' updated','success'); }
   else{ obj.id='PLAN-'+String(DB.plans.length+1).padStart(3,'0'); obj.last={status:null,at:null,runId:null}; DB.plans.push(obj); toast('Test plan saved — re-run it anytime','success'); }
-  planEditId=null; closeOverlays(); execTab='plans'; renderExecBody();
+  persist(); planEditId=null; closeOverlays(); execTab='plans'; renderExecBody();
 }
 function duplicatePlan(id){
   const p=DB.plans.find(x=>x.id===id), copy=JSON.parse(JSON.stringify(p));
   copy.id='PLAN-'+String(DB.plans.length+1).padStart(3,'0'); copy.name=p.name+' (copy)';
   copy.schedule={enabled:false,freq:null,next:null}; copy.last={status:null,at:null,runId:null};
-  DB.plans.push(copy); renderExecBody(); toast('Duplicated as '+copy.id,'success');
+  DB.plans.push(copy); persist(); renderExecBody(); toast('Duplicated as '+copy.id,'success');
 }
 function deletePlan(id){
   openModal('Delete test plan?',`<div class="note warn"><span>⚠</span><div>This removes <b>${id}</b> and its schedule. Run history is kept. This cannot be undone.</div></div>`,
     `<button class="btn" data-act="close">Cancel</button><button class="btn btn-danger" data-act="deletePlanConfirm" data-a="${id}">Delete plan</button>`);
 }
-function deletePlanConfirm(id){ DB.plans=DB.plans.filter(p=>p.id!==id); closeOverlays(); renderExecBody(); toast(id+' deleted','success'); }
+function deletePlanConfirm(id){ DB.plans=DB.plans.filter(p=>p.id!==id); persist(); closeOverlays(); renderExecBody(); toast(id+' deleted','success'); }
 
 /* ---- Live run console + AI monitor ---- */
 function runPlan(id){ startConsole(DB.plans.find(p=>p.id===id)); }
 function startConsole(plan){
   RUNSIM={plan, cases:plan.caseIds.map(cid=>({id:cid,title:(DB.cases.find(c=>c.id===cid)||{}).title||cid,status:'queued',dur:null})), ai:[], done:false};
+  // record the run immediately (status: running) so it's saved even if the console is closed early
+  RUNSIM.runId='RUN-'+(runSeq++);
+  DB.runs.unshift({id:RUNSIM.runId,env:plan.env,status:'running',total:RUNSIM.cases.length,pass:0,fail:0,skip:0,started:nowStamp(),dur:'—',by:'Plan: '+plan.name,results:[],planId:plan.id});
+  persist();
   openModalWide('Live run · '+plan.name, consoleHTML(), '');
-  pushAI('info','Monitor initialized. Watching '+RUNSIM.cases.length+' cases on '+plan.env+' · '+plan.worker+'.');
+  pushAI('info','Run '+RUNSIM.runId+' dispatched & saved. Watching '+RUNSIM.cases.length+' cases on '+plan.env+' · '+plan.worker+'.');
   setTimeout(()=>stepRun(0),650);
 }
 function consoleHTML(){
@@ -1275,13 +1318,16 @@ function finishRun(){
   const status=fail?'failed':'passed';
   const live=$("#conLive"); if(live)live.remove();
   const st=$("#conStatus"); if(st)setHTML(st,tag(status,RUN_TAG[status]));
-  pushAI('info',`Run complete — ${pass}/${RUNSIM.cases.length} passed.${fail?` ${fail} issue isolated &amp; explained.`:' All green.'} Report ready.`);
-  const runId='RUN-'+(runSeq++);
+  pushAI('info',`Run complete — ${pass}/${RUNSIM.cases.length} passed.${fail?` ${fail} issue isolated &amp; explained.`:' All green.'} Result saved to history.`);
+  const runId=RUNSIM.runId;
   const results=RUNSIM.cases.map(c=>({case:c.id,script:(DB.cases.find(x=>x.id===c.id)||{}).script||null,status:c.status,dur:c.dur,
     err:c.status==='fail'?'TimeoutError: locator.click: Login.signInButton not found after lockout banner rendered':undefined,
     cat:c.status==='fail'?'Script bug':undefined}));
-  DB.runs.unshift({id:runId,env:RUNSIM.plan.env,status,total:RUNSIM.cases.length,pass,fail,skip:0,started:'just now',dur:'~'+(RUNSIM.cases.length*4)+'s',by:'Plan: '+RUNSIM.plan.name,results,planId:RUNSIM.plan.id});
-  RUNSIM.plan.last={status,at:'just now',runId};
+  // update the record created at dispatch (don't create a duplicate)
+  const run=DB.runs.find(x=>x.id===runId);
+  if(run)Object.assign(run,{status,pass,fail,skip:0,dur:'~'+(RUNSIM.cases.length*4)+'s',results});
+  RUNSIM.plan.last={status,at:(run?run.started:nowStamp()),runId};
+  persist();
   const foot=$("#conFoot"); if(foot)setHTML(foot,`<button class="btn" data-act="close">Close</button><button class="btn btn-primary" data-act="openReport" data-a="${runId}">✦ Generate AI report</button>`);
 }
 
@@ -1467,6 +1513,8 @@ const ACTIONS={
   savePlan:()=>savePlan(),
   runPlan:ds=>runPlan(ds.a),
   openReport:ds=>openReport(ds.a),
+  histStatus:ds=>{histStatus=ds.a;renderHistTable();[...document.querySelectorAll('#histSeg button')].forEach(b=>b.classList.toggle('active',b.dataset.a===ds.a));},
+  resetDemo:()=>resetDemo(),
   openCapture:()=>openCapture(),
   recapture:ds=>recapture(ds.a),
   capMethod:ds=>capMethod(ds.a),
@@ -1495,9 +1543,11 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('input',e=>{
   if(e.target.id==='caseSearchInput'){caseSearch=e.target.value;renderCaseTable();}
+  else if(e.target.id==='histSearch'){histSearch=e.target.value;renderHistTable();}
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='productSel'){CURRENT_PRODUCT=e.target.value;route();}
+  else if(e.target.id==='histEnv'){histEnv=e.target.value;renderHistTable();}
   else if(e.target.id==='planSched'){const o=$("#schedOpts");if(o)o.style.display=e.target.checked?'block':'none';}
   else if(e.target.id==='capLogin'){const o=$("#capAuth");if(o)o.style.display=e.target.checked?'block':'none';}
   else if(e.target.id==='capGenPO'){const o=$("#capPOPreview");if(o)o.style.display=e.target.checked?'block':'none';}
@@ -1507,6 +1557,7 @@ document.addEventListener('change',e=>{
 /* ============================================================
    BOOT
    ============================================================ */
+loadPersisted();
 if(!location.hash)location.hash="dashboard";
 route();
 </script>
