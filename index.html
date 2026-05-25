@@ -256,6 +256,38 @@
   .radio-card small{display:block;color:var(--text-3);font-size:11px;margin-top:2px}
   .sinp{border:1px solid var(--border-2);border-radius:6px;padding:7px 10px;font-size:13px;font-family:var(--font);min-width:0}
   .sinp:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-bg)}
+  /* page wireframe diagram (built from ARIA snapshot) */
+  .wf{border:1px solid var(--border-2);border-radius:8px;overflow:hidden;background:#fff}
+  .wf-bar{background:var(--bg-2);border-bottom:1px solid var(--border);padding:5px 9px;display:flex;align-items:center;gap:5px}
+  .wf-dot{width:7px;height:7px;border-radius:50%;background:#dcdcdc}
+  .wf-url{margin-left:6px;font-family:"SF Mono",Menlo,monospace;font-size:10px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1px 9px;color:var(--text-3)}
+  .wf-body{padding:11px;display:flex;flex-direction:column;gap:7px;min-height:96px}
+  .wf-h{font-weight:700;font-size:12px;color:#1f3a5f;border-bottom:2px solid #91caff;padding-bottom:3px}
+  .wf-input{border:1px solid var(--border-2);border-radius:5px;padding:5px 8px;font-size:11px;color:var(--text-3);background:#fff}
+  .wf-btn{display:inline-block;background:var(--primary);color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;align-self:flex-start}
+  .wf-table{border:1px solid var(--border-2);border-radius:5px;min-height:30px;background:repeating-linear-gradient(0deg,#fff,#fff 9px,#fafafa 9px,#fafafa 10px);font-size:10px;color:var(--text-3);padding:4px 7px}
+  .wf-link{color:var(--primary);text-decoration:underline;font-size:11px}
+  .wf-nav{display:flex;gap:8px;font-size:10px;color:var(--text-3);border-bottom:1px solid var(--border);padding-bottom:5px;flex-wrap:wrap}
+  .wf-el{font-size:11px;color:var(--text-3)}
+  .wf.mini .wf-body{min-height:58px;padding:7px;gap:4px}
+  .wf.mini .wf-h{font-size:10px} .wf.mini .wf-input,.wf.mini .wf-btn,.wf.mini .wf-link,.wf.mini .wf-el{font-size:9px;padding:2px 6px}
+  /* selectable thumbnail */
+  .thumb{border:2px solid var(--border);border-radius:9px;padding:8px;cursor:pointer;transition:.15s;background:#fff}
+  .thumb:hover{border-color:var(--primary)}
+  .thumb.sel{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-bg)}
+  .thumb .tlabel{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:12px}
+  .thumb .tlabel .cell-id{font-size:11px}
+  .thumbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  /* crawl discovered list */
+  .disc{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px}
+  .disc .wf{width:180px;flex-shrink:0}
+  .disc .dmeta{flex:1;min-width:0}
+  /* guided builder */
+  .gb-step{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:#fff}
+  .gb-step-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .gb-badge{width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+  .attach{display:inline-flex;align-items:center;gap:6px;background:var(--bg-2);border:1px solid var(--border-2);border-radius:16px;padding:3px 10px;font-size:12px;color:var(--text-2);margin:3px 6px 0 0}
+  .attach .rm{cursor:pointer;color:var(--text-3)}
   @media(max-width:920px){
     .sidebar{transform:translateX(-100%)} .main{margin-left:0} .kpis{grid-template-columns:repeat(2,1fr)}
   }
@@ -432,6 +464,29 @@ function loadPersisted(){
   runSeq=mx+1;
 }
 function resetDemo(){ try{Object.keys(PKEYS).forEach(k=>localStorage.removeItem(k));}catch(e){} location.reload(); }
+
+/* ---- page lookup, multi-page cases & wireframe diagram ---- */
+function pageByNameOrId(x){ if(!x)return null; const up=String(x).toUpperCase().replace(/\s+/g,'-');
+  return DB.pages.find(p=>p.id===x||p.id==='PAGE-'+up||p.route===x) || DB.pages.find(p=>p.id.replace('PAGE-','')===up) || null; }
+function casePages(c){ return (c.pages&&c.pages.length)?c.pages:(c.page?[c.page]:[]); }
+function normCases(){ DB.cases.forEach(c=>{ if(!c.pages){
+  const cov=((c.coverage&&c.coverage.pages)||[]).map(pid=>pid.replace('PAGE-','')).map(s=>s?s.charAt(0)+s.slice(1).toLowerCase():s);
+  c.pages=[...new Set([c.page,...cov].filter(Boolean))];
+}}); }
+function pageDiagram(page,mini){
+  if(!page)return `<div class="wf ${mini?'mini':''}"><div class="wf-bar"><span class="wf-dot"></span><span class="wf-url">unknown</span></div><div class="wf-body"><div class="wf-el muted">No registered profile yet</div></div></div>`;
+  const blocks=(page.aria||[]).map(a=>{
+    const i=a.indexOf(':'), role=(i>=0?a.slice(0,i):a).trim().toLowerCase(), label=esc(i>=0?a.slice(i+1).trim():a);
+    if(role==='heading')return `<div class="wf-h">${label}</div>`;
+    if(role==='button')return `<div class="wf-btn">${label}</div>`;
+    if(role==='textbox'||role==='combobox'||role==='searchbox')return `<div class="wf-input">${label}</div>`;
+    if(role==='table')return `<div class="wf-table">▦ ${label}</div>`;
+    if(role==='link')return `<div class="wf-link">${label}</div>`;
+    if(role==='navigation')return `<div class="wf-nav">${label}</div>`;
+    return `<div class="wf-el">${label}</div>`;
+  }).join('');
+  return `<div class="wf ${mini?'mini':''}"><div class="wf-bar"><span class="wf-dot"></span><span class="wf-dot"></span><span class="wf-dot"></span><span class="wf-url">${esc(page.route||'')}</span></div><div class="wf-body">${blocks||'<div class="wf-el muted">empty</div>'}</div></div>`;
+}
 
 const STATUS_TAG={automated:'tag-green',candidate:'tag-orange',manual:'tag-gray'};
 const PRIO_TAG={High:'tag-red',Medium:'tag-orange',Low:'tag-gray'};
@@ -654,7 +709,7 @@ function openCase(id){
     <dl class="dl">
       <dt>Product</dt><dd>${esc(c.product)}</dd>
       <dt>Module</dt><dd>${esc(c.module)} · ${esc(c.feature)}</dd>
-      <dt>Page</dt><dd><a href="#pages">${esc(c.page)}</a></dd>
+      <dt>Pages</dt><dd>${casePages(c).map(pn=>`<a href="#pages" class="tag tag-cyan" style="text-decoration:none">${esc(pn)}</a>`).join(' ')||'<span class="muted">—</span>'}</dd>
       <dt>Priority</dt><dd>${tag(c.priority,PRIO_TAG[c.priority])}</dd>
       <dt>Type</dt><dd>${c.type}</dd>
       <dt>Linked script</dt><dd>${sc?`<a href="#scripts" class="cell-id">${sc.id}</a>`:'<span class="muted">none — candidate for generation</span>'}</dd>
@@ -662,6 +717,8 @@ function openCase(id){
     <div class="divider"></div>
     <div class="section-title" style="font-size:14px">Preconditions</div>
     <ul style="margin:0 0 4px 18px;color:rgba(0,0,0,.65)">${c.pre.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>
+    <div class="section-title" style="font-size:14px;margin-top:18px">Page preview <span class="muted" style="font-weight:400">— simplified diagram from the ARIA snapshot</span></div>
+    <div class="row" style="gap:12px">${casePages(c).map(pn=>{const pg=pageByNameOrId(pn);return `<div style="flex:1;min-width:200px;max-width:300px"><div class="muted" style="font-size:11px;margin-bottom:5px">${esc(pn)}${pg?'':' · not registered'}</div>${pageDiagram(pg)}</div>`;}).join('')||'<div class="muted">No pages linked.</div>'}</div>
     <div class="section-title" style="font-size:14px;margin-top:18px">Steps</div>
     <ol class="steps">${c.steps.map((s,i)=>`<li><span class="n">${i+1}</span><div class="act">${esc(s.a)} ${s.v?`<span class="muted">→ "${esc(s.v)}"</span>`:''}<div class="tgt">${esc(s.t)}</div></div></li>`).join("")}</ol>
     <div class="section-title" style="font-size:14px;margin-top:18px">Expected result</div>
@@ -721,7 +778,7 @@ function openNewCase(){
       <div class="field" style="flex:1;margin-bottom:12px"><label>Feature</label><input id="ncFeature" placeholder="e.g. Login"></div>
     </div>
     <div class="row" style="gap:12px">
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Page</label><input id="ncPage" placeholder="e.g. Login"></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Pages <span class="muted">(comma-separated)</span></label><input id="ncPage" placeholder="e.g. Login, Dashboard"></div>
       <div class="field" style="flex:1;margin-bottom:12px"><label>Priority</label><div class="select-wrap" style="width:100%"><select id="ncPriority" style="width:100%"><option>High</option><option selected>Medium</option><option>Low</option></select></div></div>
       <div class="field" style="flex:1;margin-bottom:12px"><label>Type</label><div class="select-wrap" style="width:100%"><select id="ncType" style="width:100%"><option>Positive</option><option>Negative</option></select></div></div>
     </div>
@@ -755,7 +812,8 @@ function saveCase(){
   const title=g('#ncTitle'); if(!title){toast('Title is required','error');return;}
   ncSyncSteps();
   const lines=v=>(v||'').split('\n').map(x=>x.trim()).filter(Boolean);
-  const c={id,title,product:g('#ncProduct'),module:g('#ncModule')||'—',feature:g('#ncFeature')||'—',page:g('#ncPage')||'—',
+  const pages=g('#ncPage').split(',').map(x=>x.trim()).filter(Boolean);
+  const c={id,title,product:g('#ncProduct'),module:g('#ncModule')||'—',feature:g('#ncFeature')||'—',page:pages[0]||'—',pages:pages.length?pages:['—'],
     priority:g('#ncPriority'),type:g('#ncType'),status:'manual',script:null,
     pre:lines($('#ncPre').value), steps:newCaseSteps.filter(s=>s.a).map(s=>({a:s.a,t:s.t||'—',v:s.v||undefined})),
     expected:lines($('#ncExpected').value), coverage:{requirements:[],pages:[],features:[]}, lastRun:null};
@@ -862,23 +920,27 @@ function gsAccept(){
    ============================================================ */
 function viewPages(){
   const pages=filteredPages();
+  const ups=(DB.updates||[]).filter(u=>CURRENT_PRODUCT==='all'||u.product===CURRENT_PRODUCT);
   render(`
   <div class="page-head">
     <div><div class="page-title">Page Registry</div>
-    <div class="page-sub">Low-token page profiles: ARIA snapshots + Locator Maps + Page Object paths replace full HTML/screenshots as AI input. <b>FR-PAGE-001…006</b></div></div>
-    <button class="btn btn-primary" data-act="openCapture">+ Register / capture page</button>
+    <div class="page-sub">Low-token page profiles: ARIA snapshots + Locator Maps + Page Object paths replace full HTML/screenshots as AI input. <b>FR-PAGE-001…008</b></div></div>
+    <div class="btn-row">
+      <button class="btn" data-act="openCapture">+ Register page</button>
+      <button class="btn" data-act="crawlFull">⛓ Crawl full site</button>
+      <button class="btn btn-primary" data-act="crawlUpdate">⟳ Capture update</button>
+    </div>
   </div>
-  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+  ${ups.length?`<div class="card card-pad" style="margin-bottom:16px"><div class="section-title" style="font-size:14px">Recorded software updates <span class="muted" style="font-weight:400">— pages re-profiled per release</span></div>${ups.map(u=>`<div class="between" style="padding:7px 0;border-bottom:1px solid var(--border)"><div><span class="tag tag-purple">⟳ ${esc(u.label)}</span> <span class="muted" style="font-size:12px">${esc(u.system||u.product)} · ${u.date}</span></div><div class="muted" style="font-size:12px">${u.pages.length} pages: ${u.pages.map(esc).join(', ')}</div></div>`).join('')}</div>`:''}
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
     ${pages.map(p=>`
       <div class="card card-pad" style="cursor:pointer" data-act="openPage" data-a="${p.id}">
-        <div class="between"><span class="cell-id">${p.id}</span>${p.drift?tag('drift','tag-orange'):tag('stable','tag-green')}</div>
-        <div class="mono muted" style="margin:8px 0">${p.route}</div>
-        <div class="row" style="gap:14px;font-size:12px;color:rgba(0,0,0,.45)">
-          <span>◫ ${p.aria.length} aria nodes</span><span>⌖ ${p.map.length} locators</span>
+        <div class="between" style="margin-bottom:8px"><span class="cell-id">${p.id}</span>${p.drift?tag('drift','tag-orange'):tag('stable','tag-green')}</div>
+        ${pageDiagram(p,true)}
+        <div class="between" style="margin-top:8px"><span class="mono muted" style="font-size:12px">${p.route}</span>${p.update?`<span class="tag tag-purple" style="font-size:10px">⟳ ${esc(p.update)}</span>`:''}</div>
+        <div class="row" style="gap:14px;font-size:12px;color:rgba(0,0,0,.45);margin-top:6px">
+          <span>◫ ${p.aria.length}</span><span>⌖ ${p.map.length} locators</span>
         </div>
-        <div class="divider"></div>
-        <div class="token-pill">PO: ${esc(p.po.split('/').pop())}</div>
-        <div class="token-pill">dom_hash: ${p.hash}</div>
       </div>`).join("")}
   </div>`);
 }
@@ -1081,6 +1143,119 @@ function capSave(){
 }
 
 /* ============================================================
+   CRAWL: full-site (#3) & update-scoped (#4)
+   ============================================================ */
+const CRAWL_CANDIDATES={
+  'Back Office':[['Login','/login'],['Dashboard','/dashboard'],['Users','/users'],['Settings','/settings'],['Menu','/menu'],['Reports','/reports'],['Audit Log','/audit']],
+  'Online Order':[['Order','/order'],['Cart','/cart'],['Checkout','/checkout'],['Confirmation','/confirm']],
+  'POS':[['Sale','/sale'],['Payment','/payment'],['Refund','/refund']],
+  'KDS':[['Tickets','/tickets'],['History','/history']],
+  'Kiosk':[['Welcome','/welcome'],['Menu','/menu'],['Pay','/pay']]
+};
+function synthProfile(name,route){
+  const reg=DB.pages.find(p=>p.route===route);
+  if(reg)return {aria:reg.aria.slice(),map:reg.map.map(m=>m.slice())};
+  const base=name.replace(/\s+/g,'');
+  return {aria:['heading: '+name,'navigation: Main','button: Primary action','table: '+name+' list'],
+    map:[[base+'.primary',"getByRole('button', { name: 'Primary action' })"],[base+'.table',"getByRole('table', { name: '"+name+" list' })"]]};
+}
+let CRAWL=null;
+function crawlFull(){ const prod=CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT; CRAWL={mode:'full',step:1,product:prod,entry:(CRAWL_CANDIDATES[prod]||[['Home','/']])[0][1],label:'',system:prod,affected:'',discovered:[]}; crawlRender(); }
+function crawlUpdate(){ const prod=CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT; CRAWL={mode:'update',step:1,product:prod,entry:'',label:'Release 2026.6',system:prod,affected:'/users\n/settings',discovered:[]}; crawlRender(); }
+function crawlRender(){ ({1:crawlStep1,2:crawlStep2,3:crawlStep3}[CRAWL.step])(); }
+function crawlStepper(){ const labels=CRAWL.mode==='full'?['Entry point','Crawl','Review & save']:['Update scope','Crawl affected','Review & save'];
+  return `<div class="cap-steps">${labels.map((l,i)=>{const n=i+1;const cls=n<CRAWL.step?'done':(n===CRAWL.step?'active':'');return `<div class="cap-step ${cls}"><span class="cap-num">${n<CRAWL.step?'✓':n}</span>${l}</div>`;}).join('<span class="cap-arrow">→</span>')}</div>`; }
+function crawlStep1(){
+  if(CRAWL.mode==='full'){
+    openModalWide('Crawl full site',`
+      ${crawlStepper()}
+      <div class="note"><span>⛓</span><div>From the entry page the crawler discovers all reachable pages and generates an ARIA snapshot, Locator Map &amp; Page Object for each — in one pass. <b>FR-PAGE-007</b></div></div>
+      <div class="row" style="gap:12px;margin-top:14px">
+        <div class="field" style="flex:1"><label>Product</label><div class="select-wrap" style="width:100%"><select id="crProduct" style="width:100%">${Object.keys(CRAWL_CANDIDATES).map(x=>`<option ${CRAWL.product===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+        <div class="field" style="flex:1"><label>Entry route</label><input id="crEntry" value="${esc(CRAWL.entry)}"></div>
+        <div class="field" style="width:120px"><label>Max depth</label><input id="crDepth" type="number" value="3" min="1" max="6"></div>
+      </div>
+      <div class="field"><label>Environment</label><div class="select-wrap" style="width:100%"><select id="crEnv" style="width:100%"><option>staging</option><option>qa</option></select></div></div>
+    `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="crawlStart">Start crawl →</button>`);
+  }else{
+    openModalWide('Capture software update',`
+      ${crawlStepper()}
+      <div class="note purple"><span>⟳</span><div>Record the pages affected by a software update and crawl <b>only those</b> — re-profiling just what changed, not the whole site. <b>FR-PAGE-008</b></div></div>
+      <div class="row" style="gap:12px;margin-top:14px">
+        <div class="field" style="flex:1"><label>System / product</label><div class="select-wrap" style="width:100%"><select id="crProduct" style="width:100%">${Object.keys(CRAWL_CANDIDATES).map(x=>`<option ${CRAWL.product===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+        <div class="field" style="flex:1"><label>Update label / ticket</label><input id="crLabel" value="${esc(CRAWL.label)}" placeholder="e.g. Release 2026.6 / JIRA-1234"></div>
+      </div>
+      <div class="field"><label>Affected routes <span class="muted">(one per line — only these are crawled)</span></label><textarea id="crAffected" style="min-height:92px">${esc(CRAWL.affected)}</textarea></div>
+    `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="crawlStart">Crawl affected →</button>`);
+  }
+}
+function crawlStart(){
+  CRAWL.product=$("#crProduct").value;
+  if(CRAWL.mode==='full'){ CRAWL.entry=$("#crEntry").value.trim(); }
+  else{ CRAWL.system=CRAWL.product; CRAWL.label=$("#crLabel").value.trim()||'Update'; CRAWL.affected=$("#crAffected").value; }
+  CRAWL.step=2; crawlRender(); runCrawlStream();
+}
+function crawlStep2(){
+  openModalWide(CRAWL.mode==='full'?'Crawling · '+CRAWL.product:'Crawling update · '+CRAWL.label,`
+    ${crawlStepper()}
+    <div class="bar" style="margin-bottom:12px"><i id="crBar" style="width:0%;transition:.4s"></i></div>
+    <div class="cap-log" id="crLog"></div>
+  `,`<button class="btn" data-act="close">Cancel</button>`);
+}
+function runCrawlStream(){
+  let targets;
+  if(CRAWL.mode==='full'){ targets=(CRAWL_CANDIDATES[CRAWL.product]||[]).map(([name,route])=>({name,route})); }
+  else{
+    const routes=CRAWL.affected.split('\n').map(s=>s.trim()).filter(Boolean), cand=CRAWL_CANDIDATES[CRAWL.product]||[];
+    targets=routes.map(r=>{const m=cand.find(c=>c[1]===r); return {name:m?m[0]:(r.replace(/^\//,'').replace(/(^|\s)\S/g,t=>t.toUpperCase())||'Page'), route:r};});
+  }
+  CRAWL.discovered=targets.map(t=>{const prof=synthProfile(t.name,t.route);const id='PAGE-'+t.name.toUpperCase().replace(/\s+/g,'-');const existed=DB.pages.some(p=>p.id===id||p.route===t.route);return {name:t.name,route:t.route,id,aria:prof.aria,map:prof.map,isNew:!existed,include:true};});
+  const steps=[['▸', CRAWL.mode==='full'?('Launching crawler at '+CRAWL.entry+' (depth 3)…'):('Scoping to '+targets.length+' affected route(s)…')]];
+  targets.forEach(t=>steps.push(['✓','Discovered '+t.route+' → extracted ARIA + locators']));
+  steps.push(['🧠','Scoring locator stability across '+targets.length+' pages…']);
+  steps.push(['✓','Crawl complete — '+targets.length+' page profiles ready.']);
+  const log=[]; let i=0;
+  const tick=()=>{ if(!$("#crLog"))return; log.push(steps[i]);
+    setHTML($("#crLog"),log.map(([ic,t])=>`<div style="margin-bottom:6px"><span style="color:${ic==='✓'?'#7ee787':ic==='🧠'?'#d2a8ff':'#58a6ff'}">${ic}</span> ${esc(t)}</div>`).join(''));
+    const b=$("#crBar");if(b)b.style.width=Math.round((i+1)/steps.length*100)+'%'; $("#crLog").scrollTop=$("#crLog").scrollHeight; i++;
+    if(i<steps.length)setTimeout(tick,340); else setTimeout(()=>{if($("#crLog")){CRAWL.step=3;crawlRender();}},600); };
+  setTimeout(tick,300);
+}
+function crawlStep3(){
+  const d=CRAWL.discovered, inc=d.filter(x=>x.include).length;
+  openModalWide('Review discovered pages',`
+    ${crawlStepper()}
+    <div class="between" style="margin-bottom:10px"><div class="muted" style="font-size:13px">${d.length} page${d.length!==1?'s':''} ${CRAWL.mode==='full'?'discovered':'affected'} · ${d.filter(x=>x.isNew).length} new, ${d.filter(x=>!x.isNew).length} re-profiled</div><span class="strong" id="crSel">${inc} selected</span></div>
+    ${CRAWL.mode==='update'?`<div class="note purple" style="margin-bottom:10px"><span>⟳</span><div>Recording under <b>${esc(CRAWL.label)}</b> — only affected pages were crawled.</div></div>`:''}
+    ${d.map((x,i)=>`<div class="disc">
+      ${pageDiagram(x,true)}
+      <div class="dmeta">
+        <div class="between"><span class="cell-id">${x.id}</span>${x.isNew?tag('new','tag-green'):tag('re-profiled','tag-blue')}</div>
+        <div class="mono muted" style="margin:4px 0">${x.route}</div>
+        <div style="font-size:12px;color:var(--text-3)">◫ ${x.aria.length} aria · ⌖ ${x.map.length} locators</div>
+        <label class="check" style="margin-top:8px;padding:6px 10px"><input type="checkbox" ${x.include?'checked':''} data-crinc="${i}"><div class="meta"><b>Include in save</b></div></label>
+      </div>
+    </div>`).join('')}
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="crawlSave">Save selected profiles</button>`);
+}
+function crawlSave(){
+  document.querySelectorAll('[data-crinc]').forEach(cb=>{CRAWL.discovered[+cb.dataset.crinc].include=cb.checked;});
+  const inc=CRAWL.discovered.filter(x=>x.include);
+  if(!inc.length){toast('Select at least one page','error');return;}
+  inc.forEach(x=>{
+    const po='products/'+CRAWL.product.toLowerCase().replace(/\s+/g,'')+'/pages/'+x.name.replace(/\s+/g,'')+'Page.ts';
+    const obj={id:x.id,route:x.route,product:CRAWL.product,po,hash:'c'+Math.random().toString(16).slice(2,5)+'…'+Math.random().toString(16).slice(2,4),drift:false,aria:x.aria,map:x.map};
+    if(CRAWL.mode==='update')obj.update=CRAWL.label;
+    const ex=DB.pages.find(p=>p.id===x.id); if(ex)Object.assign(ex,obj); else DB.pages.push(obj);
+  });
+  if(CRAWL.mode==='update'){ if(!DB.updates)DB.updates=[]; DB.updates.unshift({id:'UPD-'+(DB.updates.length+1),label:CRAWL.label,system:CRAWL.system,product:CRAWL.product,date:nowStamp(),pages:inc.map(x=>x.id)}); }
+  persist();
+  const msg=CRAWL.mode==='full'?('Crawled & saved '+inc.length+' pages'):('Update “'+CRAWL.label+'” recorded · '+inc.length+' pages re-profiled');
+  CRAWL=null; closeOverlays(); toast(msg,'success');
+  if((location.hash.slice(1)||'')==='pages')viewPages();
+}
+
+/* ============================================================
    VIEW: SCRIPT LIBRARY
    ============================================================ */
 function viewScripts(){
@@ -1153,13 +1328,23 @@ let aiContext=[
   {k:"Full page HTML",t:3200,on:false,why:"Excluded — high cost, low value"},
   {k:"Full-page screenshot",t:1100,on:false,why:"Excluded — semantics suffice"}
 ];
+let aiMode='quick';
 function viewAI(){
   render(`
   <div class="page-head">
     <div><div class="page-title">AI Generation Workspace</div>
-    <div class="page-sub">Enter intent → the platform assembles minimal context → AI returns a structured case &amp; Playwright script. Reuse-first, token-aware, human-accepted. <b>FR-AI-001…009</b></div></div>
+    <div class="page-sub">Turn intent — or a guided, page-by-page walkthrough — into a structured case &amp; Playwright script. Reuse-first, token-aware, human-accepted. <b>FR-AI-001…010</b></div></div>
   </div>
-  <div class="row" style="align-items:flex-start">
+  <div class="tabs" id="aiModeTabs">
+    <button class="${aiMode==='quick'?'active':''}" data-act="aiMode" data-a="quick">⚡ Quick generate</button>
+    <button class="${aiMode==='guided'?'active':''}" data-act="aiMode" data-a="guided">🧭 Guided builder</button>
+  </div>
+  <div id="aiBody"></div>`);
+  renderAIBody();
+}
+function renderAIBody(){ const b=$("#aiBody"); if(!b)return; if(aiMode==='quick'){setHTML(b,aiQuickHTML());renderCtx();}else{setHTML(b,aiGuidedHTML());renderGB();} }
+function aiQuickHTML(){
+  return `<div class="row" style="align-items:flex-start">
     <div class="stack" style="flex:1;min-width:320px">
       <div class="card card-pad">
         <div class="section-title">1 · Test intent</div>
@@ -1187,8 +1372,7 @@ function viewAI(){
         </div>
       </div>
     </div>
-  </div>`);
-  renderCtx();
+  </div>`;
 }
 function renderCtx(){
   setHTML($("#ctxList"),aiContext.map((c,i)=>`
@@ -1259,6 +1443,118 @@ test(<span class="s">'BO-LOGIN-001: Valid user login'</span>, <span class="k">as
 }
 function aiTab(i){[0,1].forEach(n=>{const e=$("#aiTab"+n);if(e)e.style.display=n===i?'block':'none';});[...document.querySelectorAll('#aiTabs button')].forEach((b,n)=>b.classList.toggle('active',n===i));}
 function acceptAI(){closeOverlays();toast('Accepted · branch feat/bo-login-001 created · PR opened','success');}
+
+/* ---- Guided builder (#5): step-by-step → AI Case + script ---- */
+let GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}]}, GBRES=null;
+function aiGuidedHTML(){
+  return `<div class="row" style="align-items:flex-start">
+    <div class="stack" style="flex:1.2;min-width:340px">
+      <div class="card card-pad">
+        <div class="section-title">Build the test, step by step</div>
+        <div class="page-sub" style="margin:0 0 12px">For each step: find the page and confirm it from its thumbnail, describe the operation + instructions, and attach files/pages. AI assembles everything into a Case &amp; script. <b>FR-AI-010</b></div>
+        <div id="gbSteps"></div>
+        <button class="btn" data-act="gbAddStep">+ Add step</button>
+      </div>
+      <button class="btn btn-primary btn-lg" style="width:100%;justify-content:center" data-act="gbSubmit">✦ Submit to AI · generate Case &amp; script</button>
+    </div>
+    <div class="stack" style="flex:1;min-width:320px">
+      <div class="card card-pad" id="gbOutput"><div class="empty"><div style="font-size:36px">🧭</div><div class="strong" style="margin-top:8px">Generated Case &amp; script appears here</div><div>Add steps on the left, then submit.</div></div></div>
+    </div>
+  </div>`;
+}
+function gbThumbsHTML(i){
+  const s=GB.steps[i];
+  const matches=(s.q?DB.pages.filter(p=>(p.id+' '+p.route+' '+(p.product||'')).toLowerCase().includes(s.q.toLowerCase())):DB.pages).slice(0,6);
+  return matches.length?matches.map(p=>`<div class="thumb ${s.pageId===p.id?'sel':''}" data-act="gbPick" data-a="${i}" data-b="${p.id}">${pageDiagram(p,true)}<div class="tlabel"><input type="checkbox" ${s.pageId===p.id?'checked':''} tabindex="-1"><span class="cell-id">${p.id}</span></div></div>`).join(''):'<div class="muted">No matching saved pages — register or crawl pages first.</div>';
+}
+function renderGB(){
+  const host=$("#gbSteps"); if(!host)return;
+  setHTML(host, GB.steps.map((s,i)=>{
+    const confirmed=s.pageId?DB.pages.find(p=>p.id===s.pageId):null;
+    return `<div class="gb-step">
+      <div class="gb-step-head"><div style="display:flex;align-items:center;gap:8px"><span class="gb-badge">${i+1}</span><span class="strong">Step ${i+1}</span></div>${GB.steps.length>1?`<button class="x" data-act="gbDelStep" data-a="${i}" title="Remove step">✕</button>`:''}</div>
+      <div class="field" style="margin-bottom:8px"><label>Find the page</label><input class="sinp" style="width:100%" data-gb="q" data-i="${i}" value="${esc(s.q)}" placeholder="Type a page name or route, e.g. login / users"></div>
+      ${confirmed
+        ? `<div class="note" style="margin-bottom:8px"><span>✓</span><div>Confirmed page: <b>${confirmed.id}</b> <span class="muted">(${confirmed.route})</span> · <a data-act="gbClear" data-a="${i}" style="cursor:pointer;color:#1677ff">change</a></div></div>`
+        : `<div class="muted" style="font-size:12px;margin-bottom:6px">Retrieved thumbnails — check the correct page to confirm:</div><div class="thumbgrid" id="gbThumbs${i}" style="margin-bottom:8px">${gbThumbsHTML(i)}</div>`}
+      <div class="field" style="margin-bottom:8px"><label>Operation</label><input class="sinp" style="width:100%" data-gb="op" data-i="${i}" value="${esc(s.op)}" placeholder="e.g. Enter email & password, click Sign In"></div>
+      <div class="field" style="margin-bottom:8px"><label>Instructions / notes for AI</label><textarea data-gb="instr" data-i="${i}" placeholder="e.g. Use a valid active account; expect redirect to Dashboard">${esc(s.instr)}</textarea></div>
+      <div><button class="btn btn-sm" data-act="gbAttachFile" data-a="${i}">📎 Attach file</button> <button class="btn btn-sm" data-act="gbAttachPage" data-a="${i}">◫ Attach page</button>
+        <div style="margin-top:4px">${(s.files||[]).map((f,fi)=>`<span class="attach">${esc(f)}<span class="rm" data-act="gbDelFile" data-a="${i}" data-b="${fi}">✕</span></span>`).join('')}</div></div>
+    </div>`;
+  }).join(''));
+}
+function gbSync(){ document.querySelectorAll('[data-gb]').forEach(el=>{const i=+el.dataset.i,f=el.dataset.gb; if(GB.steps[i])GB.steps[i][f]=el.value;}); }
+function gbAddStep(){ gbSync(); GB.steps.push({q:'',pageId:null,op:'',instr:'',files:[]}); renderGB(); }
+function gbDelStep(i){ gbSync(); GB.steps.splice(+i,1); if(!GB.steps.length)GB.steps.push({q:'',pageId:null,op:'',instr:'',files:[]}); renderGB(); }
+function gbPick(i,pid){ gbSync(); GB.steps[+i].pageId=pid; renderGB(); }
+function gbClear(i){ gbSync(); GB.steps[+i].pageId=null; renderGB(); }
+function gbAttachFile(i){ gbSync(); const opts=['spec.pdf','wireframe.png','api-notes.md','session.har']; const s=GB.steps[+i]; s.files.push(opts[s.files.length%opts.length]); renderGB(); }
+function gbAttachPage(i){ gbSync(); const s=GB.steps[+i]; s.files.push('◫ '+(s.pageId||(DB.pages[0]&&DB.pages[0].id)||'PAGE')); renderGB(); }
+function gbDelFile(i,fi){ gbSync(); GB.steps[+i].files.splice(+fi,1); renderGB(); }
+function gbBuildCase(){
+  const pageObjs=[...new Set(GB.steps.filter(s=>s.pageId).map(s=>s.pageId))].map(id=>DB.pages.find(p=>p.id===id)).filter(Boolean);
+  const pageNames=pageObjs.map(p=>{const n=p.id.replace('PAGE-','');return n.charAt(0)+n.slice(1).toLowerCase();});
+  const product=(pageObjs[0]&&pageObjs[0].product)||(CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT);
+  const steps=GB.steps.map(s=>{const pg=s.pageId&&DB.pages.find(p=>p.id===s.pageId);const tgt=pg&&pg.map&&pg.map[0]?pg.map[0][0]:(pg?pg.id:'—');return {a:s.op||'(operation)',t:tgt,v:undefined,instr:s.instr||'',files:(s.files||[]).slice()};});
+  return {id:'GEN-'+String(DB.cases.length+1).padStart(3,'0'),product,pages:pageNames,page:pageNames[0]||'—',
+    title:(GB.steps[0]&&GB.steps[0].op)?GB.steps[0].op:('Guided flow: '+(pageNames.join(' → ')||'multi-page')),steps};
+}
+function gbSubmit(){
+  gbSync();
+  const ok=GB.steps.some(s=>s.pageId&&(s.op||'').trim());
+  if(!ok){toast('Add at least one step with a confirmed page and an operation','error');return;}
+  setHTML($("#gbOutput"),`<div class="empty"><span class="spin"></span><div style="margin-top:12px">Assembling ${GB.steps.length} step(s) + page context, attachments &amp; instructions…</div></div>`);
+  setTimeout(gbResult,1200);
+}
+function gbResult(){
+  GBRES=gbBuildCase();
+  const c=GBRES;
+  const caseJSON=`{
+  <span class="f">"case_id"</span>: <span class="s">"${c.id}"</span>,
+  <span class="f">"title"</span>: <span class="s">"${esc(c.title)}"</span>,
+  <span class="f">"product"</span>: <span class="s">"${esc(c.product)}"</span>,
+  <span class="f">"pages"</span>: [${c.pages.map(p=>`<span class="s">"${esc(p)}"</span>`).join(', ')}],
+  <span class="f">"steps"</span>: [
+${c.steps.map((s,i)=>`    { <span class="f">"step"</span>:${i+1}, <span class="f">"action"</span>:<span class="s">"${esc(s.a)}"</span>, <span class="f">"target"</span>:<span class="s">"${esc(s.t)}"</span>${s.files.length?`, <span class="f">"attachments"</span>:${s.files.length}`:''} }`).join(',\n')}
+  ]
+}`;
+  const cls=(c.page||'Page').replace(/\s+/g,'')+'Page';
+  const script=`<span class="k">import</span> { test, expect } <span class="k">from</span> <span class="s">'@playwright/test'</span>;
+<span class="k">import</span> { <span class="f">${cls}</span> } <span class="k">from</span> <span class="s">'../../pages/${cls}'</span>;
+
+test(<span class="s">'${c.id}: ${esc(c.title)}'</span>, <span class="k">async</span> ({ page }) => {
+  test.info().annotations.push({ type: <span class="s">'case_id'</span>, description: <span class="s">'${c.id}'</span> });
+  <span class="k">const</span> po = <span class="k">new</span> <span class="f">${cls}</span>(page);
+  <span class="k">await</span> po.open();
+${c.steps.map(s=>`  <span class="c">// ${esc(s.a)}${s.instr?` — ${esc(s.instr)}`:''}</span>`).join('\n')}
+  <span class="k">await</span> expect(page).toHaveURL(<span class="s">/.+/</span>);
+});`;
+  setHTML($("#gbOutput"),`
+    <div class="between" style="margin-bottom:8px"><div class="section-title" style="margin:0">Generated output</div>${tag('draft — awaiting acceptance','tag-orange')}</div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">From ${GB.steps.length} guided step(s) across ${c.pages.length} page(s) · ~${Math.round(85)}% tokens saved vs full-HTML.</div>
+    <div class="tabs" id="gbResTabs"><button class="active" data-act="gbResTab" data-a="0">Structured case</button><button data-act="gbResTab" data-a="1">Playwright script</button></div>
+    <div id="gbRes0"><pre class="code">${caseJSON}</pre></div>
+    <div id="gbRes1" style="display:none"><pre class="code">${script}</pre></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn" data-act="gbReset">Discard</button><button class="btn btn-primary" data-act="gbAccept">✓ Accept · create Case + script</button></div>
+    <div class="note" style="margin-top:10px"><span>⚖</span><div>Human-in-the-loop: on accept the Case &amp; script are created, linked, and the case is marked automated. <b>FR-AI-006/008</b></div></div>`);
+}
+function gbResTab(i){ [0,1].forEach(n=>{const e=$("#gbRes"+n);if(e)e.style.display=(+i===n)?'block':'none';}); [...document.querySelectorAll('#gbResTabs button')].forEach((b,n)=>b.classList.toggle('active',n===+i)); }
+function gbReset(){ GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}]}; GBRES=null; renderAIBody(); }
+function gbAccept(){
+  const c=GBRES; if(!c)return;
+  const scriptId='SCRIPT-'+c.id;
+  DB.cases.unshift({id:c.id,title:c.title,product:c.product,module:'AI-generated',feature:'Guided',page:c.page,pages:c.pages,
+    priority:'Medium',type:'Positive',status:'automated',script:scriptId,
+    pre:['Generated from guided builder'],steps:c.steps.map(s=>({a:s.a,t:s.t})),expected:['Flow completes as described'],
+    coverage:{requirements:[],pages:c.pages.map(p=>'PAGE-'+p.toUpperCase()),features:[]},lastRun:null});
+  if(!DB.scripts.some(s=>s.id===scriptId))
+    DB.scripts.unshift({id:scriptId,path:'products/'+c.product.toLowerCase().replace(/\s+/g,'')+'/tests/guided/'+c.id.toLowerCase()+'.spec.ts',fw:'Playwright',status:'passing',branch:'feat/'+c.id.toLowerCase(),golden:false,cases:[c.id],pr:'open',hash:'sha:'+Math.random().toString(16).slice(2,8)});
+  persist();
+  toast('Created '+c.id+' + script from guided steps','success');
+  setHTML($("#gbOutput"),`<div class="empty"><div style="font-size:36px;color:#52c41a">✓</div><div class="strong" style="margin-top:8px">${c.id} created &amp; linked</div><div class="muted" style="margin:6px 0 14px">Case + script saved and marked automated.</div><button class="btn" data-act="nav" data-a="cases">Open Case Library</button> <button class="btn" data-act="gbReset">Build another</button></div>`);
+  GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}]}; GBRES=null;
+}
 
 /* ============================================================
    VIEW: EXECUTION CENTER
@@ -1680,6 +1976,22 @@ const ACTIONS={
   gsAccept:()=>gsAccept(),
   openCapture:()=>openCapture(),
   recapture:ds=>recapture(ds.a),
+  crawlFull:()=>crawlFull(),
+  crawlUpdate:()=>crawlUpdate(),
+  crawlStart:()=>crawlStart(),
+  crawlSave:()=>crawlSave(),
+  aiMode:ds=>{aiMode=ds.a;renderAIBody();[...document.querySelectorAll('#aiModeTabs button')].forEach(b=>b.classList.toggle('active',b.dataset.a===ds.a));},
+  gbAddStep:()=>gbAddStep(),
+  gbDelStep:ds=>gbDelStep(ds.a),
+  gbPick:ds=>gbPick(ds.a,ds.b),
+  gbClear:ds=>gbClear(ds.a),
+  gbAttachFile:ds=>gbAttachFile(ds.a),
+  gbAttachPage:ds=>gbAttachPage(ds.a),
+  gbDelFile:ds=>gbDelFile(ds.a,ds.b),
+  gbSubmit:()=>gbSubmit(),
+  gbResTab:ds=>gbResTab(ds.a),
+  gbReset:()=>gbReset(),
+  gbAccept:()=>gbAccept(),
   capMethod:ds=>capMethod(ds.a),
   capStartCapture:()=>capStartCapture(),
   capNext:ds=>capNext(ds.a),
@@ -1707,6 +2019,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{
   if(e.target.id==='caseSearchInput'){caseSearch=e.target.value;renderCaseTable();}
   else if(e.target.id==='histSearch'){histSearch=e.target.value;renderHistTable();}
+  else if(e.target.dataset&&e.target.dataset.gb==='q'){const i=+e.target.dataset.i;if(GB.steps[i]){GB.steps[i].q=e.target.value;const c=$("#gbThumbs"+i);if(c)setHTML(c,gbThumbsHTML(i));}}
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='productSel'){CURRENT_PRODUCT=e.target.value;route();}
@@ -1721,6 +2034,7 @@ document.addEventListener('change',e=>{
    BOOT
    ============================================================ */
 loadPersisted();
+normCases();
 if(!location.hash)location.hash="dashboard";
 route();
 </script>
