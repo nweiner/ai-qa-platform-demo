@@ -241,6 +241,19 @@
   .con-case .ct{flex:1;font-size:13px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .report-sec{margin-bottom:18px}
   @media(max-width:760px){.console{flex-direction:column}.con-ai-log,.con-cases{max-height:220px}}
+  /* page capture wizard */
+  .cap-steps{display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+  .cap-step{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-3)}
+  .cap-step.active{color:var(--primary);font-weight:600}
+  .cap-step.done{color:var(--success)}
+  .cap-num{width:22px;height:22px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0}
+  .cap-arrow{color:var(--border-2)}
+  .cap-log{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:14px;font-family:"SF Mono",Menlo,monospace;font-size:12px;line-height:1.7;color:#c9d1d9;min-height:200px;max-height:46vh;overflow:auto}
+  .radio-row{display:flex;gap:8px;flex-wrap:wrap}
+  .radio-card{flex:1;min-width:150px;border:1px solid var(--border-2);border-radius:8px;padding:10px 12px;cursor:pointer;font-size:13px;transition:.15s}
+  .radio-card:hover{border-color:var(--primary)}
+  .radio-card.sel{border-color:var(--primary);background:var(--primary-bg)}
+  .radio-card small{display:block;color:var(--text-3);font-size:11px;margin-top:2px}
   @media(max-width:920px){
     .sidebar{transform:translateX(-100%)} .main{margin-left:0} .kpis{grid-template-columns:repeat(2,1fr)}
   }
@@ -412,6 +425,8 @@ const RUN_TAG={passed:'tag-green',failed:'tag-red',running:'tag-blue',queued:'ta
 const RES_TAG={pass:'tag-green',fail:'tag-red',skip:'tag-gray'};
 const SCRIPT_STATUS_TAG={passing:'tag-green',failing:'tag-red',draft:'tag-gray'};
 const RISK_TAG={High:'tag-red',Medium:'tag-orange',Low:'tag-gray'};
+const STRAT_TAG={testid:'tag-green',role:'tag-blue',label:'tag-cyan',text:'tag-purple',css:'tag-orange'};
+const STAB_TAG={High:'tag-green',Med:'tag-orange',Low:'tag-red'};
 
 function tag(text,cls){return `<span class="tag ${cls}">${esc(text)}</span>`;}
 function filteredCases(){return CURRENT_PRODUCT==="all"?DB.cases:DB.cases.filter(c=>c.product===CURRENT_PRODUCT);}
@@ -682,7 +697,7 @@ function viewPages(){
   <div class="page-head">
     <div><div class="page-title">Page Registry</div>
     <div class="page-sub">Low-token page profiles: ARIA snapshots + Locator Maps + Page Object paths replace full HTML/screenshots as AI input. <b>FR-PAGE-001…006</b></div></div>
-    <button class="btn btn-primary" data-act="toast" data-msg="Capture queued — ARIA snapshot will be generated" data-type="info">+ Register / capture page</button>
+    <button class="btn btn-primary" data-act="openCapture">+ Register / capture page</button>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
     ${pages.map(p=>`
@@ -716,7 +731,184 @@ function openPage(id){
     <div class="section-title" style="font-size:14px;margin-top:18px">Locator Map</div>
     <pre class="code">${p.map.map(([k,v])=>`<span class="f">${esc(k.padEnd(22))}</span><span class="c">→</span> ${esc(v)}`).join("\n")}</pre>`;
   openDrawer("Page profile",body,
-    `<button class="btn" data-act="toast" data-msg="Re-capture queued for ${p.id}" data-type="info">↻ Re-capture</button><button class="btn btn-primary" data-act="closeNav" data-a="scripts">View Page Object</button>`);
+    `<button class="btn" data-act="recapture" data-a="${p.id}">↻ Re-capture</button><button class="btn btn-primary" data-act="closeNav" data-a="scripts">View Page Object</button>`);
+}
+
+/* ============================================================
+   PAGE CAPTURE WIZARD  (Register / capture a page)
+   ============================================================ */
+let CAPSTATE=null;
+function inferStrat(loc){
+  if(loc.includes('getByTestId'))return{strat:'testid',stab:'High'};
+  if(loc.includes('getByRole'))return{strat:'role',stab:loc.includes('table')?'Med':'High'};
+  if(loc.includes('getByLabel')||loc.includes('getByPlaceholder'))return{strat:'label',stab:'High'};
+  if(loc.includes('getByText'))return{strat:'text',stab:'Med'};
+  return{strat:'css',stab:'Low'};
+}
+function openCapture(){
+  CAPSTATE={step:1,mode:'new',src:null,captured:null,
+    data:{product:(CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT),name:'Reports',route:'/reports',env:'staging',login:true,method:'live'}};
+  renderCap();
+}
+function recapture(id){
+  const p=DB.pages.find(x=>x.id===id);
+  CAPSTATE={step:1,mode:'recapture',src:p,captured:null,
+    data:{product:p.product,name:p.id.replace('PAGE-','').replace(/-/g,' '),route:p.route,env:'staging',login:true,method:'live'}};
+  renderCap();
+}
+function capStepper(){
+  const labels=['Target','Capture','Review','Page Object & save'];
+  return `<div class="cap-steps">${labels.map((l,i)=>{const n=i+1;const cls=n<CAPSTATE.step?'done':(n===CAPSTATE.step?'active':'');
+    return `<div class="cap-step ${cls}"><span class="cap-num">${n<CAPSTATE.step?'✓':n}</span>${l}</div>`;}).join('<span class="cap-arrow">→</span>')}</div>`;
+}
+function renderCap(){ ({1:capStep1,2:capStep2,3:capStep3,4:capStep4}[CAPSTATE.step])(); }
+const CAP_TITLE=()=> (CAPSTATE.mode==='recapture'?'Re-capture page · ':'Register / capture page · ');
+
+function capStep1(){
+  const d=CAPSTATE.data;
+  const methodCard=(v,t,s)=>`<div class="radio-card ${d.method===v?'sel':''}" data-act="capMethod" data-a="${v}"><b>${t}</b><small>${s}</small></div>`;
+  openModalWide(CAP_TITLE()+'Target',`
+    ${capStepper()}
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="capProduct" style="width:100%">${['Back Office','Online Order','POS','KDS','Kiosk'].map(x=>`<option ${d.product===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Page name</label><input id="capName" value="${esc(d.name)}" placeholder="e.g. Reports"></div>
+    </div>
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Route / URL path</label><input id="capRoute" value="${esc(d.route)}" placeholder="/reports"></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Environment</label><div class="select-wrap" style="width:100%"><select id="capEnv" style="width:100%">${['staging','qa','dev'].map(e=>`<option ${d.env===e?'selected':''}>${e}</option>`).join('')}</select></div></div>
+    </div>
+    <label class="check" style="cursor:pointer"><input type="checkbox" id="capLogin" ${d.login?'checked':''}><div class="meta"><b>Page requires login</b><small>Restore a saved auth state before navigating (so protected pages capture correctly).</small></div></label>
+    <div id="capAuth" style="display:${d.login?'block':'none'};padding-left:8px">
+      <div class="field" style="margin-bottom:6px"><label>Auth profile</label><div class="select-wrap" style="width:100%"><select id="capAuthProfile" style="width:100%"><option>qa_user@staging (Admin)</option><option>qa_viewer@staging (Viewer)</option></select></div></div>
+    </div>
+    <div class="section-title" style="font-size:14px;margin-top:8px">Capture method</div>
+    <div class="radio-row">
+      ${methodCard('live','Live capture','Headless browser visits the route')}
+      ${methodCard('paste','Paste HTML','Use a saved HTML snapshot')}
+      ${methodCard('test','From a test run','Reuse a passing run’s page state')}
+    </div>
+    <div class="note" style="margin-top:14px"><span>ⓘ</span><div>Capture extracts an <b>ARIA snapshot</b> + <b>Locator Map</b> + <b>DOM hash</b> — never full HTML — to keep AI context cheap. <b>FR-PAGE-001/002/006 · NFR-COST-001</b></div></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="capStartCapture">Start capture →</button>`);
+}
+function capMethod(v){ CAPSTATE.data.method=v; capReadStep1(); renderCap(); }
+function capReadStep1(){
+  const g=id=>{const e=$(id);return e?e.value:null;};
+  const d=CAPSTATE.data;
+  if($("#capProduct"))d.product=g("#capProduct");
+  if($("#capName"))d.name=$("#capName").value.trim()||d.name;
+  if($("#capRoute"))d.route=$("#capRoute").value.trim()||d.route;
+  if($("#capEnv"))d.env=g("#capEnv");
+  if($("#capLogin"))d.login=$("#capLogin").checked;
+}
+function capStartCapture(){ capReadStep1(); CAPSTATE.step=2; renderCap(); runCaptureStream(); }
+
+function capStep2(){
+  openModalWide(CAP_TITLE()+'Capturing',`
+    ${capStepper()}
+    <div class="between" style="margin-bottom:8px"><span class="strong">${esc(CAPSTATE.data.route)} <span class="muted">· ${CAPSTATE.data.env}</span></span><span id="capStatus">${tag('capturing','tag-blue')}</span></div>
+    <div class="bar" style="margin-bottom:12px"><i id="capBar" style="width:0%;transition:.4s"></i></div>
+    <div class="cap-log" id="capLog"></div>
+  `,`<button class="btn" data-act="close">Cancel</button>`);
+}
+function runCaptureStream(){
+  const d=CAPSTATE.data;
+  const steps=[
+    ['▸',`Launching headless Chromium on ${d.env}…`],
+    ['▸',`Navigating to ${d.route} …`],
+    ...(d.login?[['▸','Restoring auth state (qa_user@staging)…']]:[]),
+    ['▸','Waiting for network idle…'],
+    ['✓','Accessibility tree captured'],
+    ['✓','Derived locators (preferring testid → role → label)'],
+    ['✓','DOM hash computed'],
+    ['🧠','AI quality scan: scoring locator stability…'],
+    ['✓','Capture complete.']
+  ];
+  let i=0;const log=[];
+  const tick=()=>{
+    if(!$("#capLog"))return;
+    log.push(steps[i]);
+    setHTML($("#capLog"),log.map(([ic,t])=>`<div style="margin-bottom:6px"><span style="color:${ic==='✓'?'#7ee787':ic==='🧠'?'#d2a8ff':'#58a6ff'}">${ic}</span> ${esc(t)}</div>`).join(''));
+    const bar=$("#capBar");if(bar)bar.style.width=Math.round((i+1)/steps.length*100)+'%';
+    $("#capLog").scrollTop=$("#capLog").scrollHeight;
+    i++;
+    if(i<steps.length){setTimeout(tick,420);}
+    else{ buildCaptured(); setTimeout(()=>{ if($("#capLog")){CAPSTATE.step=3;renderCap();} },650); }
+  };
+  setTimeout(tick,350);
+}
+function buildCaptured(){
+  const raw = CAPSTATE.mode==='recapture' ? CAPSTATE.src.map : [
+    ['Reports.dateRange',"getByLabel('Date range')"],
+    ['Reports.applyBtn',"getByRole('button', { name: 'Apply filters' })"],
+    ['Reports.resultsTable',"getByRole('table', { name: 'Report results' })"],
+    ['Reports.exportBtn',"getByRole('button', { name: 'Export CSV' })"],
+    ['Reports.firstRowAmount',"locator('table tbody tr:first-child td:nth-child(3)')"]
+  ];
+  CAPSTATE.captured={
+    aria: CAPSTATE.mode==='recapture' ? CAPSTATE.src.aria : ['heading: Reports','combobox: Date range','button: Apply filters','table: Report results','button: Export CSV'],
+    map: raw.map(([key,loc])=>({key,loc,...inferStrat(loc)})),
+    hash: CAPSTATE.mode==='recapture' ? 'c4f1…9b' : 'c4f1…9b',
+    changed: CAPSTATE.mode==='recapture'
+  };
+}
+function capStep3(){
+  const c=CAPSTATE.captured, brittle=c.map.filter(m=>m.stab==='Low');
+  openModalWide(CAP_TITLE()+'Review',`
+    ${capStepper()}
+    ${CAPSTATE.mode==='recapture'?`<div class="note warn" style="margin-bottom:14px"><span>⚠</span><div><b>Drift detected:</b> DOM hash ${CAPSTATE.src.hash} → <b>${c.hash}</b>. Review changes before overwriting — dependent scripts may need updates. <b>FR-PAGE-005</b></div></div>`:''}
+    <div class="section-title" style="font-size:14px">ARIA snapshot <span class="token-pill">(~${c.aria.length*6} tokens vs ~3.4k full HTML · ~98% saved)</span></div>
+    <pre class="code">${c.aria.map(a=>`<span class="t">- </span>${esc(a)}`).join('\n')}</pre>
+    <div class="section-title" style="font-size:14px;margin-top:16px">Locator Map <span class="muted" style="font-weight:400">— ${c.map.length} elements, strategy &amp; stability scored</span></div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Semantic name</th><th>Locator</th><th>Strategy</th><th>Stability</th></tr></thead>
+      <tbody>${c.map.map(m=>`<tr>
+        <td class="mono" style="font-size:12px;color:var(--primary)">${esc(m.key)}</td>
+        <td class="mono" style="font-size:11.5px">${esc(m.loc)}</td>
+        <td>${tag(m.strat,STRAT_TAG[m.strat])}</td>
+        <td>${tag(m.stab,STAB_TAG[m.stab])}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="note ${brittle.length?'warn':''}" style="margin-top:14px"><span>${brittle.length?'⚠':'✓'}</span><div>${brittle.length
+      ? `<b>AI quality scan:</b> ${brittle.length} element${brittle.length>1?'s':''} rely on a brittle <b>CSS fallback</b> (<span class="mono">${brittle.map(b=>b.key.split('.').pop()).join(', ')}</span>). Recommend adding a <span class="mono">data-testid</span> so the locator survives layout changes.`
+      : '<b>AI quality scan:</b> all locators use stable strategies. No brittle selectors detected.'}</div></div>
+    <div class="muted" style="font-size:12px;margin-top:10px">DOM hash: <span class="mono">${c.hash}</span></div>
+  `,`<button class="btn" data-act="capBack" data-a="1">← Back</button><button class="btn btn-primary" data-act="capNext" data-a="4">Next: Page Object →</button>`);
+}
+function capPageObjectCode(){
+  const cls=CAPSTATE.data.name.replace(/\s+/g,'')+'Page';
+  const props=CAPSTATE.captured.map.map(m=>`  <span class="f">${m.key.split('.').pop()}</span> = this.page.${m.loc};`).join('\n');
+  return `<span class="k">import</span> { Page } <span class="k">from</span> <span class="s">'@playwright/test'</span>;
+
+<span class="k">export class</span> <span class="f">${cls}</span> {
+  <span class="k">constructor</span>(<span class="k">private</span> page: Page) {}
+${props}
+  <span class="k">async</span> open() { <span class="k">await</span> this.page.goto(<span class="s">'${CAPSTATE.data.route}'</span>); }
+}`;
+}
+function capStep4(){
+  const po='products/'+CAPSTATE.data.product.toLowerCase().replace(/\s+/g,'')+'/pages/'+CAPSTATE.data.name.replace(/\s+/g,'')+'Page.ts';
+  openModalWide(CAP_TITLE()+'Page Object & save',`
+    ${capStepper()}
+    <label class="check" style="cursor:pointer"><input type="checkbox" id="capGenPO" checked><div class="meta"><b>Generate a Page Object</b><small>Create a POM class from the Locator Map so scripts call business methods, not selectors. <b>FR-PAGE-004</b></small></div></label>
+    <div id="capPOPreview">
+      <div class="codebar" style="margin-top:6px"><span>${esc(po)}</span><span>TypeScript</span></div>
+      <pre class="code">${capPageObjectCode()}</pre>
+    </div>
+    <div class="note purple" style="margin-top:14px"><span>♻</span><div>On save, the profile (route, ARIA snapshot, Locator Map, Page Object path, DOM hash) is stored in the registry and becomes reusable AI context — no re-extraction needed next time. <b>FR-PAGE-001 · FR-AI-004</b></div></div>
+  `,`<button class="btn" data-act="capBack" data-a="3">← Back</button><button class="btn btn-primary" data-act="capSave">${CAPSTATE.mode==='recapture'?'Save & overwrite profile':'Save to registry'}</button>`);
+}
+function capNext(n){ CAPSTATE.step=+n; renderCap(); }
+function capBack(n){ CAPSTATE.step=+n; renderCap(); }
+function capSave(){
+  const d=CAPSTATE.data, c=CAPSTATE.captured;
+  const id=CAPSTATE.mode==='recapture'?CAPSTATE.src.id:'PAGE-'+d.name.toUpperCase().replace(/\s+/g,'-');
+  const po='products/'+d.product.toLowerCase().replace(/\s+/g,'')+'/pages/'+d.name.replace(/\s+/g,'')+'Page.ts';
+  const obj={id,route:d.route,product:d.product,po,hash:c.hash,drift:false,aria:c.aria,map:c.map.map(m=>[m.key,m.loc])};
+  const existing=DB.pages.find(p=>p.id===id);
+  if(existing)Object.assign(existing,obj); else DB.pages.push(obj);
+  CAPSTATE=null; closeOverlays();
+  toast((existing?'Updated ':'Registered ')+id+' in Page Registry','success');
+  if((location.hash.slice(1)||'dashboard')==='pages')viewPages();
 }
 
 /* ============================================================
@@ -1275,6 +1467,13 @@ const ACTIONS={
   savePlan:()=>savePlan(),
   runPlan:ds=>runPlan(ds.a),
   openReport:ds=>openReport(ds.a),
+  openCapture:()=>openCapture(),
+  recapture:ds=>recapture(ds.a),
+  capMethod:ds=>capMethod(ds.a),
+  capStartCapture:()=>capStartCapture(),
+  capNext:ds=>capNext(ds.a),
+  capBack:ds=>capBack(ds.a),
+  capSave:()=>capSave(),
   importDo:()=>{closeOverlays();toast('Imported 40 cases · 2 flagged for review','success');},
   mergeDo:()=>{closeOverlays();toast('Merged into BO-LOGIN-002 · coverage links preserved','success');},
   caseFilter:ds=>{caseFilter=ds.a;renderCaseTable();syncSeg();},
@@ -1300,6 +1499,8 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   if(e.target.id==='productSel'){CURRENT_PRODUCT=e.target.value;route();}
   else if(e.target.id==='planSched'){const o=$("#schedOpts");if(o)o.style.display=e.target.checked?'block':'none';}
+  else if(e.target.id==='capLogin'){const o=$("#capAuth");if(o)o.style.display=e.target.checked?'block':'none';}
+  else if(e.target.id==='capGenPO'){const o=$("#capPOPreview");if(o)o.style.display=e.target.checked?'block':'none';}
   else if(e.target.dataset && e.target.dataset.ctx!==undefined){aiContext[+e.target.dataset.ctx].on=e.target.checked;renderCtx();}
 });
 
