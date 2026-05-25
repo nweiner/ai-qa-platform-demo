@@ -254,6 +254,8 @@
   .radio-card:hover{border-color:var(--primary)}
   .radio-card.sel{border-color:var(--primary);background:var(--primary-bg)}
   .radio-card small{display:block;color:var(--text-3);font-size:11px;margin-top:2px}
+  .sinp{border:1px solid var(--border-2);border-radius:6px;padding:7px 10px;font-size:13px;font-family:var(--font);min-width:0}
+  .sinp:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-bg)}
   @media(max-width:920px){
     .sidebar{transform:translateX(-100%)} .main{margin-left:0} .kpis{grid-template-columns:repeat(2,1fr)}
   }
@@ -367,7 +369,7 @@ const DB = {
     {id:"SCRIPT-BO-LOGIN-003",path:"products/backoffice/tests/login/account-lockout.spec.ts",fw:"Playwright",status:"failing",branch:"fix/login-003-lockout",golden:false,cases:["BO-LOGIN-003"],pr:"open",hash:"sha:aa01f2"}
   ],
   runs:[
-    {id:"RUN-2042",env:"staging",status:"failed",total:8,pass:7,fail:1,skip:0,started:"2026-05-22 09:14",dur:"3m 12s",by:"QA Lead",
+    {id:"RUN-2042",env:"staging",status:"failed",total:8,pass:7,fail:1,skip:0,started:"2026-05-22 09:14",dur:"3m 12s",by:"QA Lead",planId:"PLAN-001",
       results:[
         {case:"BO-LOGIN-001",script:"SCRIPT-BO-LOGIN-001",status:"pass",dur:"4.2s"},
         {case:"BO-LOGIN-002",script:"SCRIPT-BO-LOGIN-002",status:"pass",dur:"3.8s"},
@@ -378,9 +380,9 @@ const DB = {
         {case:"BO-LOGIN-002b",script:"SCRIPT-BO-LOGIN-002",status:"pass",dur:"3.7s"},
         {case:"BO-LOGIN-001c",script:"SCRIPT-BO-LOGIN-001",status:"pass",dur:"4.0s"}
       ]},
-    {id:"RUN-2041",env:"staging",status:"passed",total:7,pass:7,fail:0,skip:0,started:"2026-05-21 18:02",dur:"2m 58s",by:"QA Engineer",results:[]},
-    {id:"RUN-2040",env:"qa",status:"passed",total:6,pass:6,fail:0,skip:0,started:"2026-05-21 11:30",dur:"2m 20s",by:"CI Pipeline",results:[]},
-    {id:"RUN-2039",env:"staging",status:"failed",total:7,pass:5,fail:1,skip:1,started:"2026-05-20 16:45",dur:"3m 40s",by:"QA Engineer",results:[]}
+    {id:"RUN-2041",env:"staging",status:"passed",total:7,pass:7,fail:0,skip:0,started:"2026-05-21 18:02",dur:"2m 58s",by:"QA Engineer",planId:"PLAN-002",results:[]},
+    {id:"RUN-2040",env:"qa",status:"passed",total:6,pass:6,fail:0,skip:0,started:"2026-05-21 11:30",dur:"2m 20s",by:"CI Pipeline",planId:"PLAN-002",results:[]},
+    {id:"RUN-2039",env:"staging",status:"failed",total:7,pass:5,fail:1,skip:1,started:"2026-05-20 16:45",dur:"3m 40s",by:"QA Engineer",planId:"PLAN-001",results:[]}
   ],
   plans:[
     {id:"PLAN-001",name:"Back Office — Smoke",desc:"Critical auth + user paths, runs every deploy",product:"Back Office",caseIds:["BO-LOGIN-001","BO-LOGIN-002","BO-LOGIN-003","BO-USER-001"],env:"staging",worker:"Docker pool (4 workers)",parallelism:4,retries:1,schedule:{enabled:true,freq:"Daily 02:00",next:"2026-05-23 02:00"},last:{status:"failed",at:"2026-05-22 09:14",runId:"RUN-2042"}},
@@ -421,22 +423,15 @@ let CURRENT_PRODUCT="Back Office";
 
 /* ---- persistence: runs/plans/pages survive reloads (localStorage) ---- */
 function nowStamp(){const d=new Date();const p=n=>String(n).padStart(2,'0');return `2026-05-25 ${p(d.getHours())}:${p(d.getMinutes())}`;}
-function persist(){ try{
-  localStorage.setItem('aiqa_runs',JSON.stringify(DB.runs));
-  localStorage.setItem('aiqa_plans',JSON.stringify(DB.plans));
-  localStorage.setItem('aiqa_pages',JSON.stringify(DB.pages));
-}catch(e){} }
+const PKEYS={aiqa_runs:'runs',aiqa_plans:'plans',aiqa_pages:'pages',aiqa_cases:'cases',aiqa_scripts:'scripts'};
+function persist(){ try{ for(const k in PKEYS)localStorage.setItem(k,JSON.stringify(DB[PKEYS[k]])); }catch(e){} }
 function loadPersisted(){
-  try{
-    const r=localStorage.getItem('aiqa_runs'); if(r){const a=JSON.parse(r); if(Array.isArray(a)&&a.length)DB.runs=a;}
-    const p=localStorage.getItem('aiqa_plans'); if(p){const a=JSON.parse(p); if(Array.isArray(a)&&a.length)DB.plans=a;}
-    const g=localStorage.getItem('aiqa_pages'); if(g){const a=JSON.parse(g); if(Array.isArray(a)&&a.length)DB.pages=a;}
-  }catch(e){}
+  try{ for(const k in PKEYS){const s=localStorage.getItem(k); if(s){const a=JSON.parse(s); if(Array.isArray(a)&&a.length)DB[PKEYS[k]]=a;}} }catch(e){}
   // continue run numbering past the highest saved id to avoid collisions
   const mx=DB.runs.reduce((m,x)=>{const n=parseInt(String(x.id||'').replace('RUN-',''),10);return isNaN(n)?m:Math.max(m,n);},2042);
   runSeq=mx+1;
 }
-function resetDemo(){ try{['aiqa_runs','aiqa_plans','aiqa_pages'].forEach(k=>localStorage.removeItem(k));}catch(e){} location.reload(); }
+function resetDemo(){ try{Object.keys(PKEYS).forEach(k=>localStorage.removeItem(k));}catch(e){} location.reload(); }
 
 const STATUS_TAG={automated:'tag-green',candidate:'tag-orange',manual:'tag-gray'};
 const PRIO_TAG={High:'tag-red',Medium:'tag-orange',Low:'tag-gray'};
@@ -609,6 +604,7 @@ function viewCases(){
     <div><div class="page-title">Case Library</div>
     <div class="page-sub">Structured, deduplicated test cases. Import existing manual cases and let AI clean, classify, and assess automation suitability. <b>FR-CASE-001…009</b></div></div>
     <div class="btn-row">
+      <button class="btn" data-act="openNewCase">+ New case</button>
       <button class="btn" data-act="openImport">⇪ Import</button>
       <button class="btn" data-act="openDedupe">⧉ Find duplicates</button>
       <button class="btn btn-primary" data-act="nav" data-a="ai">✦ Generate from intent</button>
@@ -679,7 +675,7 @@ function openCase(id){
     </div>`;
   const foot=c.status==='automated'
     ? `<button class="btn" data-act="closeNav" data-a="runs">▶ Run now</button><button class="btn btn-primary" data-act="closeNav" data-a="scripts">View script</button>`
-    : `<button class="btn" data-act="aiClean" data-a="${c.id}">✦ AI clean</button><button class="btn btn-primary" data-act="genFromCase" data-a="${c.id}">✦ Generate script</button>`;
+    : `<button class="btn" data-act="aiClean" data-a="${c.id}">✦ AI clean</button><button class="btn btn-primary" data-act="genScript" data-a="${c.id}">✦ Generate script</button>`;
   openDrawer("Case detail",body,foot);
 }
 function openImport(){
@@ -705,6 +701,160 @@ function openDedupe(){
       <div class="strong" style="margin:4px 0">Wrong password shows error on sign in</div>
     </div>
   `,`<button class="btn" data-act="close">Keep both</button><button class="btn btn-primary" data-act="mergeDo">Merge</button>`);
+}
+
+/* ---- Manual case entry ---- */
+const PFX={'Back Office':'BO','Online Order':'OO','POS':'POS','KDS':'KDS','Kiosk':'KSK'};
+let newCaseSteps=[];
+function openNewCase(){
+  newCaseSteps=[{a:'',t:'',v:''}];
+  const prod=CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT;
+  const suggested=(PFX[prod]||'BO')+'-CASE-'+String(DB.cases.length+1).padStart(3,'0');
+  openModalWide('New test case',`
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Case ID</label><input id="ncId" value="${suggested}"></div>
+      <div class="field" style="flex:2;margin-bottom:12px"><label>Title</label><input id="ncTitle" placeholder="e.g. Valid user can log in successfully"></div>
+    </div>
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="ncProduct" style="width:100%">${['Back Office','Online Order','POS','KDS','Kiosk'].map(x=>`<option ${prod===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Module</label><input id="ncModule" placeholder="e.g. Authentication"></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Feature</label><input id="ncFeature" placeholder="e.g. Login"></div>
+    </div>
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Page</label><input id="ncPage" placeholder="e.g. Login"></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Priority</label><div class="select-wrap" style="width:100%"><select id="ncPriority" style="width:100%"><option>High</option><option selected>Medium</option><option>Low</option></select></div></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Type</label><div class="select-wrap" style="width:100%"><select id="ncType" style="width:100%"><option>Positive</option><option>Negative</option></select></div></div>
+    </div>
+    <div class="field"><label>Preconditions <span class="muted">(one per line)</span></label><textarea id="ncPre" placeholder="The user account exists&#10;The user is active"></textarea></div>
+    <div class="section-title" style="font-size:14px">Steps</div>
+    <div id="ncSteps"></div>
+    <button class="btn btn-sm" data-act="ncAddStep" style="margin-bottom:14px">+ Add step</button>
+    <div class="field"><label>Expected result <span class="muted">(one per line)</span></label><textarea id="ncExpected" placeholder="The user is redirected to Dashboard"></textarea></div>
+    <div class="note"><span>ⓘ</span><div>Saved as a <b>manual</b> case. Open its detail and use <b>✦ Generate script</b> to automate it. <b>FR-CASE-003</b></div></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveCase">Save case</button>`);
+  renderNcSteps();
+}
+function renderNcSteps(){
+  const host=$("#ncSteps"); if(!host)return;
+  setHTML(host, newCaseSteps.map((s,i)=>`
+    <div class="row" style="gap:8px;margin-bottom:8px;align-items:center">
+      <span class="muted" style="width:16px;flex-shrink:0">${i+1}</span>
+      <input class="sinp" data-ncstep="${i}" data-f="a" value="${esc(s.a)}" placeholder="Action (e.g. Enter email)" style="flex:2">
+      <input class="sinp" data-ncstep="${i}" data-f="t" value="${esc(s.t)}" placeholder="Target (e.g. Login.emailInput)" style="flex:2">
+      <input class="sinp" data-ncstep="${i}" data-f="v" value="${esc(s.v)}" placeholder="Value (optional)" style="flex:1.3">
+      <button class="x" data-act="ncDelStep" data-a="${i}" title="Remove step">✕</button>
+    </div>`).join(''));
+}
+function ncSyncSteps(){ document.querySelectorAll('[data-ncstep]').forEach(inp=>{const i=+inp.dataset.ncstep,f=inp.dataset.f; if(newCaseSteps[i])newCaseSteps[i][f]=inp.value;}); }
+function ncAddStep(){ ncSyncSteps(); newCaseSteps.push({a:'',t:'',v:''}); renderNcSteps(); }
+function ncDelStep(i){ ncSyncSteps(); newCaseSteps.splice(+i,1); if(!newCaseSteps.length)newCaseSteps.push({a:'',t:'',v:''}); renderNcSteps(); }
+function saveCase(){
+  const g=id=>{const e=$(id);return e?e.value.trim():'';};
+  const id=g('#ncId')||('NEW-'+(DB.cases.length+1));
+  if(DB.cases.some(c=>c.id===id)){toast('Case ID '+id+' already exists','error');return;}
+  const title=g('#ncTitle'); if(!title){toast('Title is required','error');return;}
+  ncSyncSteps();
+  const lines=v=>(v||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  const c={id,title,product:g('#ncProduct'),module:g('#ncModule')||'—',feature:g('#ncFeature')||'—',page:g('#ncPage')||'—',
+    priority:g('#ncPriority'),type:g('#ncType'),status:'manual',script:null,
+    pre:lines($('#ncPre').value), steps:newCaseSteps.filter(s=>s.a).map(s=>({a:s.a,t:s.t||'—',v:s.v||undefined})),
+    expected:lines($('#ncExpected').value), coverage:{requirements:[],pages:[],features:[]}, lastRun:null};
+  DB.cases.unshift(c); persist(); closeOverlays(); toast('Case '+id+' created','success');
+  if((location.hash.slice(1)||'')==='cases')viewCases();
+}
+
+/* ---- Workflow: generate a Playwright script from a case ---- */
+let GSTATE=null;
+function genScript(caseId){
+  const c=DB.cases.find(x=>x.id===caseId); if(!c)return;
+  GSTATE={c,step:1,page:DB.pages.find(p=>p.id==='PAGE-'+String(c.page).toUpperCase())||null,path:null};
+  gsRender();
+}
+function gsRender(){ ({1:gsStep1,2:gsStep2,3:gsStep3}[GSTATE.step])(); }
+function gsStepper(){
+  const labels=['Assemble context','Generate','Review & link'];
+  return `<div class="cap-steps">${labels.map((l,i)=>{const n=i+1;const cls=n<GSTATE.step?'done':(n===GSTATE.step?'active':'');return `<div class="cap-step ${cls}"><span class="cap-num">${n<GSTATE.step?'✓':n}</span>${l}</div>`;}).join('<span class="cap-arrow">→</span>')}</div>`;
+}
+function gsStep1(){
+  const c=GSTATE.c, pg=GSTATE.page;
+  const ctx=[
+    pg?{k:'ARIA snapshot — '+pg.id,t:pg.aria.length*6,why:'Page semantics'}:{k:'ARIA snapshot — (no registered page)',t:0,why:'Register the page for best results'},
+    pg?{k:'Locator Map — '+pg.id,t:pg.map.length*22,why:pg.map.length+' locators, avoids selector guessing'}:null,
+    pg?{k:'Page Object — '+pg.po.split('/').pop(),t:140,why:'Reuse business methods'}:null,
+    {k:'Golden script style — SCRIPT-BO-LOGIN-001',t:180,why:'Convention exemplar'},
+    {k:'The case ('+c.id+')',t:90,why:'Steps + expected results'},
+    {k:'Project conventions (cached)',t:0,why:'Fixed prompt — not re-billed'}
+  ].filter(Boolean);
+  const total=ctx.reduce((a,x)=>a+x.t,0);
+  openModalWide('Generate script · '+c.id,`
+    ${gsStepper()}
+    <div class="between" style="margin-bottom:10px"><div><span class="cell-id">${c.id}</span> <span class="strong">${esc(c.title)}</span></div>${tag(c.status,STATUS_TAG[c.status])}</div>
+    ${pg?'':`<div class="note warn" style="margin-bottom:12px"><span>⚠</span><div>No registered page profile matched <b>${esc(c.page)}</b>. The script can still be generated, but registering the page (Page Registry → Capture) yields stable locators. <b>FR-PAGE-001</b></div></div>`}
+    <div class="section-title" style="font-size:14px">Assembled context <span class="token-pill">~${total} tokens</span></div>
+    <div class="page-sub" style="margin:0 0 10px">The platform matches the case to the Page Registry and assembles only semantic assets — not raw HTML. <b>FR-AI-002/003 · NFR-COST-001</b></div>
+    ${ctx.map(x=>`<div class="check" style="cursor:default;margin-bottom:6px"><span style="color:#52c41a">✓</span><div class="meta"><b>${esc(x.k)}</b><small>${esc(x.why)}</small></div><span class="token-pill">${x.t?('~'+x.t+' tok'):'cached'}</span></div>`).join('')}
+    <div class="note" style="margin-top:10px"><span>♻</span><div><b>Reuse-first:</b> sending <b>~${total}</b> tokens vs a full-HTML baseline of ~4,300 — about <b>${Math.round((4300-total)/4300*100)}% saved</b>. <b>FR-AI-004</b></div></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="gsGenerate">✦ Generate script →</button>`);
+}
+function gsStep2(){
+  openModalWide('Generate script · '+GSTATE.c.id,`
+    ${gsStepper()}
+    <div class="bar" style="margin-bottom:12px"><i id="gsBar" style="width:0%;transition:.4s"></i></div>
+    <div class="cap-log" id="gsLog"></div>
+  `,`<button class="btn" data-act="close">Cancel</button>`);
+}
+function gsGenerate(){
+  GSTATE.step=2; gsRender();
+  const steps=[['▸','Matching '+GSTATE.c.id+' to Page Registry…'],['▸','Retrieving Locator Map + Page Object…'],['▸','Loading golden-script conventions…'],['🧠','Calling generation engine…'],['✓','Script generated — Page Object methods, no inline selectors.']];
+  let i=0;const out=[];
+  const tick=()=>{ if(!$("#gsLog"))return; out.push(steps[i]);
+    setHTML($("#gsLog"),out.map(([ic,t])=>`<div style="margin-bottom:6px"><span style="color:${ic==='✓'?'#7ee787':ic==='🧠'?'#d2a8ff':'#58a6ff'}">${ic}</span> ${esc(t)}</div>`).join(''));
+    const b=$("#gsBar");if(b)b.style.width=Math.round((i+1)/steps.length*100)+'%'; i++;
+    if(i<steps.length)setTimeout(tick,440); else setTimeout(()=>{if($("#gsLog")){GSTATE.step=3;gsRender();}},650); };
+  setTimeout(tick,300);
+}
+function gsScriptCode(){
+  const c=GSTATE.c, pageCls=String(c.page).replace(/\s+/g,'')+'Page', inst=String(c.page).toLowerCase().replace(/\s+/g,'')+'Page';
+  const stepLines=(c.steps||[]).map(s=>`  <span class="c">// ${esc(s.a)}${s.v?` → "${esc(s.v)}"`:''}</span>`).join('\n');
+  return `<span class="k">import</span> { test, expect } <span class="k">from</span> <span class="s">'@playwright/test'</span>;
+<span class="k">import</span> { <span class="f">${pageCls}</span> } <span class="k">from</span> <span class="s">'../../pages/${pageCls}'</span>;
+
+test(<span class="s">'${c.id}: ${esc(c.title)}'</span>, <span class="k">async</span> ({ page }) => {
+  test.info().annotations.push({ type: <span class="s">'case_id'</span>, description: <span class="s">'${c.id}'</span> });
+
+  <span class="k">const</span> ${inst} = <span class="k">new</span> <span class="f">${pageCls}</span>(page);
+  <span class="k">await</span> ${inst}.open();
+${stepLines}
+  <span class="c">// expected: ${esc((c.expected||[]).join('; ')||'assert outcome')}</span>
+  <span class="k">await</span> expect(page).toHaveURL(<span class="s">/.+/</span>);
+});`;
+}
+function gsStep3(){
+  const c=GSTATE.c;
+  GSTATE.path='products/'+String(c.product).toLowerCase().replace(/\s+/g,'')+'/tests/'+String(c.module).toLowerCase().replace(/[^a-z0-9]+/g,'')+'/'+c.id.toLowerCase()+'.spec.ts';
+  openModalWide('Generate script · '+c.id,`
+    ${gsStepper()}
+    <div class="row" style="gap:8px;margin-bottom:12px">
+      <div class="card card-pad" style="flex:1;text-align:center;padding:12px"><div class="muted" style="font-size:12px">Input tokens</div><div class="strong" style="font-size:18px">${Math.round(420+(c.steps||[]).length*20)}</div></div>
+      <div class="card card-pad" style="flex:1;text-align:center;padding:12px"><div class="muted" style="font-size:12px">Output tokens</div><div class="strong" style="font-size:18px">${Math.round(300+(c.steps||[]).length*18)}</div></div>
+      <div class="card card-pad" style="flex:1;text-align:center;padding:12px;background:#f6ffed;border-color:#b7eb8f"><div class="muted" style="font-size:12px">Tokens saved</div><div class="strong" style="font-size:18px;color:#389e0d">~85%</div></div>
+    </div>
+    <div class="codebar"><span>${esc(GSTATE.path)}</span><span>Playwright</span></div>
+    <pre class="code">${gsScriptCode()}</pre>
+    <div class="note purple" style="margin-top:12px"><span>♻</span><div>Calls <b>Page Object methods</b> + reuses the Locator Map — no selectors regenerated. On accept, the script is linked to <b>${c.id}</b>, added to the Script Library, and the case becomes <b>automated</b>. <b>FR-AI-003/006/008 · FR-SCRIPT-002</b></div></div>
+  `,`<button class="btn" data-act="gsBack">← Back</button><button class="btn" data-act="gsGenerate">↻ Regenerate</button><button class="btn btn-primary" data-act="gsAccept">✓ Accept · create &amp; link</button>`);
+}
+function gsBack(){ GSTATE.step=1; gsRender(); }
+function gsAccept(){
+  const c=GSTATE.c, scriptId='SCRIPT-'+c.id;
+  if(!DB.scripts.some(s=>s.id===scriptId)){
+    DB.scripts.unshift({id:scriptId,path:GSTATE.path,fw:'Playwright',status:'passing',branch:'feat/'+c.id.toLowerCase(),golden:false,cases:[c.id],pr:'open',hash:'sha:'+Math.random().toString(16).slice(2,8)});
+  }
+  c.script=scriptId; c.status='automated';
+  persist(); GSTATE=null; closeOverlays();
+  toast('Script created & linked to '+c.id+' · case marked automated','success');
+  const pg=(location.hash.slice(1)||'');
+  if(pg==='cases')viewCases(); else if(pg==='scripts')viewScripts();
 }
 
 /* ============================================================
@@ -1172,18 +1322,20 @@ function historyTabHTML(){
   </div>
   <div class="card"><div class="tbl-wrap" id="histTableHost"></div></div>`;
 }
+function planName(r){ return r.planId ? ((DB.plans.find(p=>p.id===r.planId)||{}).name || r.planId) : null; }
 function renderHistTable(){
   let rows=DB.runs.slice();
   if(histStatus!=='all')rows=rows.filter(r=>r.status===histStatus);
   if(histEnv!=='all')rows=rows.filter(r=>r.env===histEnv);
-  if(histSearch){const q=histSearch.toLowerCase();rows=rows.filter(r=>(r.id+' '+r.env+' '+(r.by||'')+' '+(r.started||'')).toLowerCase().includes(q));}
+  if(histSearch){const q=histSearch.toLowerCase();rows=rows.filter(r=>(r.id+' '+r.env+' '+(r.by||'')+' '+(planName(r)||'')+' '+(r.started||'')).toLowerCase().includes(q));}
   const cnt=$("#histCount"); if(cnt)cnt.textContent=`${rows.length} of ${DB.runs.length} run${DB.runs.length!==1?'s':''}`;
   const host=$("#histTableHost"); if(!host)return;
   setHTML(host,`<table class="tbl">
-    <thead><tr><th>Run ID</th><th>Env</th><th>Result</th><th>Cases</th><th>Pass / Fail / Skip</th><th>Duration</th><th>Triggered by</th><th>Started</th><th>AI</th><th></th></tr></thead>
-    <tbody>${rows.length?rows.map(r=>`
+    <thead><tr><th>Run ID</th><th>Test Plan</th><th>Env</th><th>Result</th><th>Cases</th><th>Pass / Fail / Skip</th><th>Duration</th><th>Triggered by</th><th>Started</th><th>AI</th><th></th></tr></thead>
+    <tbody>${rows.length?rows.map(r=>{const pn=planName(r);return `
       <tr>
         <td class="cell-id">${r.id}</td>
+        <td>${pn?`<a class="chip" style="cursor:pointer" data-act="histFilterPlan" data-a="${esc(pn)}" title="Filter by this plan">⊞ ${esc(pn)}</a>`:'<span class="muted">— ad hoc</span>'}</td>
         <td><span class="chip">${r.env}</span></td>
         <td>${tag(r.status,RUN_TAG[r.status])}</td>
         <td>${r.total}</td>
@@ -1193,7 +1345,7 @@ function renderHistTable(){
         <td class="muted">${r.started}</td>
         <td><a style="cursor:pointer;color:#1677ff" data-act="openReport" data-a="${r.id}">✦ report</a></td>
         <td><a class="muted" style="cursor:pointer" data-act="openRun" data-a="${r.id}">details →</a></td>
-      </tr>`).join(""):`<tr><td colspan="10"><div class="empty">No runs match your search.</div></td></tr>`}
+      </tr>`;}).join(""):`<tr><td colspan="11"><div class="empty">No runs match your search.</div></td></tr>`}
     </tbody></table>`);
 }
 
@@ -1378,11 +1530,13 @@ function openReport(runId){
 function openRun(id){
   const r=DB.runs.find(x=>x.id===id);
   const results=r.results.length?r.results:(r._synth||(r._synth=Array.from({length:r.total},(_,i)=>({case:'CASE-'+(i+1),status:i<r.pass?'pass':(i<r.pass+r.fail?'fail':'skip'),dur:(3+Math.random()*3).toFixed(1)+'s'}))));
+  const pn=planName(r);
   const body=`
     <div class="between" style="margin-bottom:12px">
       <div><div class="cell-id">${r.id}</div><div class="muted" style="margin-top:3px">${r.env} · ${r.started} · ${esc(r.by)}</div></div>
       ${tag(r.status,RUN_TAG[r.status])}
     </div>
+    <div class="note" style="margin-bottom:14px"><span>⊞</span><div><b>Test plan:</b> ${pn?`${esc(pn)} <span class="muted">(${r.planId})</span>`:'<span class="muted">ad-hoc run — not linked to a saved plan</span>'}</div></div>
     <div class="row" style="gap:8px;margin-bottom:14px">
       <div class="card card-pad" style="flex:1;text-align:center;padding:10px"><div class="muted" style="font-size:12px">Total</div><div class="strong" style="font-size:18px">${r.total}</div></div>
       <div class="card card-pad" style="flex:1;text-align:center;padding:10px;background:#f6ffed"><div class="muted" style="font-size:12px">Passed</div><div class="strong" style="font-size:18px;color:#389e0d">${r.pass}</div></div>
@@ -1514,7 +1668,16 @@ const ACTIONS={
   runPlan:ds=>runPlan(ds.a),
   openReport:ds=>openReport(ds.a),
   histStatus:ds=>{histStatus=ds.a;renderHistTable();[...document.querySelectorAll('#histSeg button')].forEach(b=>b.classList.toggle('active',b.dataset.a===ds.a));},
+  histFilterPlan:ds=>{histSearch=ds.a;const i=$("#histSearch");if(i)i.value=ds.a;renderHistTable();},
   resetDemo:()=>resetDemo(),
+  openNewCase:()=>openNewCase(),
+  ncAddStep:()=>ncAddStep(),
+  ncDelStep:ds=>ncDelStep(ds.a),
+  saveCase:()=>saveCase(),
+  genScript:ds=>genScript(ds.a),
+  gsGenerate:()=>gsGenerate(),
+  gsBack:()=>gsBack(),
+  gsAccept:()=>gsAccept(),
   openCapture:()=>openCapture(),
   recapture:ds=>recapture(ds.a),
   capMethod:ds=>capMethod(ds.a),
