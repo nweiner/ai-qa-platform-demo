@@ -455,7 +455,7 @@ let CURRENT_PRODUCT="Back Office";
 
 /* ---- persistence: runs/plans/pages survive reloads (localStorage) ---- */
 function nowStamp(){const d=new Date();const p=n=>String(n).padStart(2,'0');return `2026-05-25 ${p(d.getHours())}:${p(d.getMinutes())}`;}
-const PKEYS={aiqa_runs:'runs',aiqa_plans:'plans',aiqa_pages:'pages',aiqa_cases:'cases',aiqa_scripts:'scripts',aiqa_products:'products',aiqa_updates:'updates'};
+const PKEYS={aiqa_runs:'runs',aiqa_plans:'plans',aiqa_pages:'pages',aiqa_cases:'cases',aiqa_scripts:'scripts',aiqa_products:'products',aiqa_updates:'updates',aiqa_suites:'suites',aiqa_modules:'modules'};
 function persist(){ try{ for(const k in PKEYS)localStorage.setItem(k,JSON.stringify(DB[PKEYS[k]])); }catch(e){} }
 function loadPersisted(){
   try{ for(const k in PKEYS){const s=localStorage.getItem(k); if(s){const a=JSON.parse(s); if(Array.isArray(a)&&a.length)DB[PKEYS[k]]=a;}} }catch(e){}
@@ -470,7 +470,12 @@ function pageByNameOrId(x){ if(!x)return null; const up=String(x).toUpperCase().
   return DB.pages.find(p=>p.id===x||p.id==='PAGE-'+up||p.route===x) || DB.pages.find(p=>p.id.replace('PAGE-','')===up) || null; }
 function casePages(c){ return (c.pages&&c.pages.length)?c.pages:(c.page?[c.page]:[]); }
 function normCases(){
-  // products (seed defaults if empty)
+  // suites (top-level grouping) — seed defaults if empty
+  if(!DB.suites||!DB.suites.length)DB.suites=[
+    {id:'SUITE-1',name:'Restaurant Operations Suite',description:'In-store products: Back Office, POS, KDS, and the self-service Kiosk.'},
+    {id:'SUITE-2',name:'Customer Order Suite',description:'Customer-facing online ordering.'}
+  ];
+  // products (seed defaults if empty) + backfill suiteId & language
   if(!DB.products||!DB.products.length)DB.products=[
     {id:'PROD-1',name:'Back Office',description:'Admin console for store configuration, user management, and reporting.'},
     {id:'PROD-2',name:'Online Order',description:'Web ordering for guests; menu browsing, cart, checkout.'},
@@ -478,6 +483,20 @@ function normCases(){
     {id:'PROD-4',name:'KDS',description:'Kitchen display system for order routing & timing.'},
     {id:'PROD-5',name:'Kiosk',description:'Self-service ordering kiosk.'}
   ];
+  const PROD_DEFAULTS={
+    'Back Office':{suiteId:'SUITE-1',language:'TypeScript'},
+    'POS':{suiteId:'SUITE-1',language:'C#'},
+    'KDS':{suiteId:'SUITE-1',language:'TypeScript'},
+    'Kiosk':{suiteId:'SUITE-1',language:'Swift'},
+    'Online Order':{suiteId:'SUITE-2',language:'TypeScript'}
+  };
+  DB.products.forEach(p=>{const d=PROD_DEFAULTS[p.name]||{}; if(!p.suiteId)p.suiteId=d.suiteId||(DB.suites[0]&&DB.suites[0].id); if(!p.language)p.language=d.language||'TypeScript';});
+  // modules (seed from existing case module/product pairs if empty)
+  if(!DB.modules||!DB.modules.length){
+    const seen=new Set(), mods=[];
+    DB.cases.forEach(c=>{ if(!c.module||c.module==='—')return; const k=(c.product||'')+'::'+c.module; if(seen.has(k))return; seen.add(k); mods.push({id:'MOD-'+(mods.length+1),name:c.module,product:c.product,description:''}); });
+    DB.modules=mods;
+  }
   if(!DB.updates)DB.updates=[];
   // page variants (a page may have multiple ARIA snapshots & locator maps)
   DB.pages.forEach(p=>{ if(!p.variants||!p.variants.length) p.variants=[{name:'default',aria:p.aria.slice(),map:p.map.map(m=>m.slice())}]; });
@@ -495,11 +514,21 @@ function normCases(){
   }});
 }
 function productNames(){ return (DB.products||[]).map(p=>p.name); }
+function suiteName(sid){const s=(DB.suites||[]).find(x=>x.id===sid); return s?s.name:'—';}
+function modulesForProduct(productName){ return (DB.modules||[]).filter(m=>m.product===productName); }
 function buildProductSel(){
   const sel=$("#productSel"); if(!sel)return;
   const names=productNames();
   if(!names.includes(CURRENT_PRODUCT)&&CURRENT_PRODUCT!=='all')CURRENT_PRODUCT=names[0]||'all';
-  setHTML(sel,`<option value="all">All products</option>`+names.map(n=>`<option value="${esc(n)}" ${CURRENT_PRODUCT===n?'selected':''}>${esc(n)}</option>`).join(''));
+  let html='<option value="all">All products</option>';
+  (DB.suites||[]).forEach(s=>{
+    const ps=DB.products.filter(p=>p.suiteId===s.id);
+    if(!ps.length)return;
+    html+=`<optgroup label="${esc(s.name)}">`+ps.map(p=>`<option value="${esc(p.name)}" ${CURRENT_PRODUCT===p.name?'selected':''}>${esc(p.name)}</option>`).join('')+'</optgroup>';
+  });
+  const orphans=DB.products.filter(p=>!p.suiteId||!(DB.suites||[]).find(s=>s.id===p.suiteId));
+  if(orphans.length)html+='<optgroup label="(no suite)">'+orphans.map(p=>`<option value="${esc(p.name)}" ${CURRENT_PRODUCT===p.name?'selected':''}>${esc(p.name)}</option>`).join('')+'</optgroup>';
+  setHTML(sel,html);
 }
 function pageDiagram(page,mini){
   if(!page)return `<div class="wf ${mini?'mini':''}"><div class="wf-bar"><span class="wf-dot"></span><span class="wf-url">unknown</span></div><div class="wf-body"><div class="wf-el muted">No registered profile yet</div></div></div>`;
@@ -567,9 +596,11 @@ const NAV=[
   {id:"runs",label:"Execution Center",ic:"▶"},
   {id:"coverage",label:"Coverage",ic:"◎"},
   {group:"Settings"},
-  {id:"settings",label:"Product Settings",ic:"⚙"}
+  {id:"suites",label:"Product Suites",ic:"▣"},
+  {id:"settings",label:"Products",ic:"⚙"},
+  {id:"modules",label:"Modules",ic:"☷"}
 ];
-const TITLES={dashboard:"Dashboard",cases:"Case Library",pages:"Page Registry",scripts:"Script Library",ai:"AI Generation Workspace",runs:"Execution Center",coverage:"Coverage Dashboard",settings:"Product Settings"};
+const TITLES={dashboard:"Dashboard",cases:"Case Library",pages:"Page Registry",scripts:"Script Library",ai:"AI Generation Workspace",runs:"Execution Center",coverage:"Coverage Dashboard",settings:"Products",suites:"Product Suites",modules:"Modules"};
 
 function renderNav(active){
   setHTML($("#nav"),NAV.map(n=>{
@@ -582,7 +613,7 @@ function route(){
   renderNav(page);
   setHTML($("#crumb"),`AI QA Platform <span style="margin:0 6px;color:#d9d9d9">/</span> <b>${esc(TITLES[page]||"Dashboard")}</b>`);
   closeOverlays();
-  ({dashboard:viewDashboard,cases:viewCases,pages:viewPages,scripts:viewScripts,ai:viewAI,runs:viewRuns,coverage:viewCoverage,settings:viewSettings}[page]||viewDashboard)();
+  ({dashboard:viewDashboard,cases:viewCases,pages:viewPages,scripts:viewScripts,ai:viewAI,runs:viewRuns,coverage:viewCoverage,settings:viewSettings,suites:viewSuites,modules:viewModules}[page]||viewDashboard)();
 }
 window.addEventListener("hashchange",route);
 
@@ -804,7 +835,7 @@ function openNewCase(){
     </div>
     <div class="row" style="gap:12px">
       <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="ncProduct" style="width:100%">${productNames().map(x=>`<option ${prod===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div></div>
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Module</label><input id="ncModule" placeholder="e.g. Authentication"></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Module</label><div class="select-wrap" style="width:100%"><select id="ncModule" style="width:100%">${ncModuleOptions(prod)}</select></div><div class="muted" style="font-size:11px;margin-top:4px">Manage in Settings → Modules</div></div>
       <div class="field" style="flex:1;margin-bottom:12px"><label>Feature</label><input id="ncFeature" placeholder="e.g. Login"></div>
     </div>
     <div class="row" style="gap:12px">
@@ -818,6 +849,11 @@ function openNewCase(){
     <div class="note"><span>ⓘ</span><div>Saved as a <b>manual</b> case. Pages are derived from the page selected on each step. Open its detail and use <b>✦ Generate script</b> to automate it. <b>FR-CASE-003</b></div></div>
   `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveCase">Save case</button>`);
   renderNcSteps();
+}
+function ncModuleOptions(productName){
+  const mods=modulesForProduct(productName);
+  if(!mods.length)return `<option value="">(no modules — add in Settings → Modules)</option>`;
+  return mods.map(m=>`<option>${esc(m.name)}</option>`).join('');
 }
 function ncThumbsHTML(i){
   const s=newCaseSteps[i];
@@ -2093,22 +2129,29 @@ function recommendGap(i){
 }
 
 /* ============================================================
-   VIEW: SETTINGS · PRODUCT SETTINGS
+   VIEW: SETTINGS · PRODUCT SUITES / PRODUCTS / MODULES
    ============================================================ */
+const LANGS=['TypeScript','JavaScript','Python','Go','Java','C#','Swift','Kotlin','Ruby','PHP','Rust','Other'];
+
+/* ---- Products ---- */
 function viewSettings(){
   render(`
   <div class="page-head">
-    <div><div class="page-title">Product Settings</div>
-    <div class="page-sub">Manage the product catalog. Products defined here appear in Case Library, Page Registry, AI Generation, and the topbar product filter. <b>FR-ADM-002</b></div></div>
+    <div><div class="page-title">Products</div>
+    <div class="page-sub">Each product belongs to a Product Suite and has a development language. Products appear in Case Library, Page Registry, AI Generation, and the topbar filter (grouped by suite). <b>FR-ADM-002</b></div></div>
     <button class="btn btn-primary" data-act="openNewProduct">+ New product</button>
   </div>
-  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
     ${DB.products.map(p=>{
-      const nCases=DB.cases.filter(c=>c.product===p.name).length, nPages=DB.pages.filter(x=>x.product===p.name).length, nPlans=DB.plans.filter(x=>x.product===p.name).length;
+      const nCases=DB.cases.filter(c=>c.product===p.name).length, nPages=DB.pages.filter(x=>x.product===p.name).length, nMods=DB.modules.filter(m=>m.product===p.name).length;
       return `<div class="card card-pad">
-        <div class="between"><span class="cell-id">${p.id}</span><span class="muted" style="font-size:12px">${nCases} cases · ${nPages} pages · ${nPlans} plans</span></div>
+        <div class="between"><span class="cell-id">${p.id}</span><span class="muted" style="font-size:12px">${nCases} cases · ${nPages} pages · ${nMods} modules</span></div>
         <div class="strong" style="font-size:16px;margin:8px 0 4px">${esc(p.name)}</div>
         <div class="muted" style="font-size:13px">${esc(p.description||'—')}</div>
+        <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+          <span class="tag tag-purple">▣ ${esc(suiteName(p.suiteId))}</span>
+          <span class="tag tag-cyan">⟨/⟩ ${esc(p.language||'—')}</span>
+        </div>
         <div class="divider"></div>
         <div class="btn-row">
           <button class="btn btn-sm" data-act="editProduct" data-a="${p.id}">Edit</button>
@@ -2121,28 +2164,154 @@ function viewSettings(){
 function openNewProduct(){ productModal(null); }
 function editProduct(id){ productModal(DB.products.find(p=>p.id===id)); }
 function productModal(p){
+  const curSuite=p?p.suiteId:(DB.suites[0]&&DB.suites[0].id);
+  const curLang=p?p.language:'TypeScript';
   openModal((p?'Edit':'New')+' product',`
-    <div class="field"><label>Product name</label><input id="prdName" value="${p?esc(p.name):''}" placeholder="e.g. Self-Service Kiosk"></div>
-    <div class="field"><label>Description</label><textarea id="prdDesc" placeholder="What this product is, who uses it, why it exists…">${p?esc(p.description||''):''}</textarea></div>
+    <div class="field"><label>Product name <span style="color:var(--error)">*</span></label><input id="prdName" value="${p?esc(p.name):''}" placeholder="e.g. Self-Service Kiosk"></div>
+    <div class="field"><label>Description</label><textarea id="prdDesc" placeholder="What this product is, who uses it…">${p?esc(p.description||''):''}</textarea></div>
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1;margin-bottom:6px"><label>Product Suite <span style="color:var(--error)">*</span></label>
+        <div class="select-wrap" style="width:100%"><select id="prdSuite" style="width:100%">
+          ${DB.suites.map(s=>`<option value="${s.id}" ${curSuite===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}
+          <option value="__new__">+ Create new suite…</option>
+        </select></div>
+        <input id="prdSuiteNew" class="sinp" style="width:100%;margin-top:8px;display:none" placeholder="Name of the new suite">
+      </div>
+      <div class="field" style="flex:1;margin-bottom:6px"><label>Development language <span style="color:var(--error)">*</span></label>
+        <div class="select-wrap" style="width:100%"><select id="prdLang" style="width:100%">${LANGS.map(l=>`<option ${curLang===l?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+      </div>
+    </div>
   `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveProduct" ${p?`data-a="${p.id}"`:''}>${p?'Save changes':'Create product'}</button>`);
 }
 function saveProduct(id){
   const name=$("#prdName").value.trim(); if(!name){toast('Name is required','error');return;}
   if(DB.products.some(p=>p.name.toLowerCase()===name.toLowerCase() && p.id!==id)){toast('A product with this name already exists','error');return;}
   const desc=$("#prdDesc").value.trim();
-  if(id){const p=DB.products.find(x=>x.id===id); if(p){p.name=name; p.description=desc;}}
-  else{ DB.products.push({id:'PROD-'+(DB.products.length+1),name,description:desc}); }
+  let suiteId=$("#prdSuite").value;
+  if(suiteId==='__new__'){
+    const sn=($("#prdSuiteNew").value||'').trim();
+    if(!sn){toast('Enter the new suite name','error');return;}
+    if(DB.suites.some(s=>s.name.toLowerCase()===sn.toLowerCase())){toast('A suite with this name already exists','error');return;}
+    const s={id:'SUITE-'+(DB.suites.length+1),name:sn,description:''};
+    DB.suites.push(s); suiteId=s.id;
+  }
+  if(!suiteId||!DB.suites.find(s=>s.id===suiteId)){toast('Select a Product Suite','error');return;}
+  const language=$("#prdLang").value; if(!language){toast('Select a development language','error');return;}
+  if(id){const p=DB.products.find(x=>x.id===id); if(p){p.name=name; p.description=desc; p.suiteId=suiteId; p.language=language;}}
+  else{ DB.products.push({id:'PROD-'+(DB.products.length+1),name,description:desc,suiteId,language}); }
   persist(); buildProductSel(); closeOverlays(); toast('Product '+(id?'updated':'created'),'success'); viewSettings();
 }
 function deleteProduct(id){
   const p=DB.products.find(x=>x.id===id); if(!p)return;
-  const used=DB.cases.some(c=>c.product===p.name)||DB.pages.some(x=>x.product===p.name)||DB.plans.some(x=>x.product===p.name);
-  openModal('Delete product?',`<div class="note warn"><span>⚠</span><div>Delete <b>${esc(p.name)}</b>?${used?' Existing cases/pages/plans referencing it keep their stored name, but it will no longer appear in dropdowns.':' No assets reference it.'}</div></div>`,
+  const used=DB.cases.some(c=>c.product===p.name)||DB.pages.some(x=>x.product===p.name)||DB.plans.some(x=>x.product===p.name)||DB.modules.some(m=>m.product===p.name);
+  openModal('Delete product?',`<div class="note warn"><span>⚠</span><div>Delete <b>${esc(p.name)}</b>?${used?' Existing assets referencing it keep their stored name, but it will no longer appear in dropdowns.':' No assets reference it.'}</div></div>`,
     `<button class="btn" data-act="close">Cancel</button><button class="btn btn-danger" data-act="deleteProductConfirm" data-a="${id}">Delete</button>`);
 }
 function deleteProductConfirm(id){
   DB.products=DB.products.filter(p=>p.id!==id); persist(); buildProductSel(); closeOverlays(); toast('Product deleted','success'); viewSettings();
 }
+
+/* ---- Product Suites ---- */
+function viewSuites(){
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Product Suites</div>
+    <div class="page-sub">Top-level grouping. Each product belongs to a suite. <b>FR-ADM-002</b></div></div>
+    <button class="btn btn-primary" data-act="openNewSuite">+ New suite</button>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+    ${DB.suites.map(s=>{
+      const ps=DB.products.filter(p=>p.suiteId===s.id);
+      return `<div class="card card-pad">
+        <div class="between"><span class="cell-id">${s.id}</span><span class="muted" style="font-size:12px">${ps.length} product${ps.length===1?'':'s'}</span></div>
+        <div class="strong" style="font-size:16px;margin:8px 0 4px">${esc(s.name)}</div>
+        <div class="muted" style="font-size:13px">${esc(s.description||'—')}</div>
+        ${ps.length?`<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">${ps.map(p=>`<span class="tag tag-blue">${esc(p.name)} <span class="muted" style="margin-left:4px">${esc(p.language||'—')}</span></span>`).join('')}</div>`:''}
+        <div class="divider"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" data-act="editSuite" data-a="${s.id}">Edit</button>
+          <button class="btn btn-sm btn-danger" data-act="deleteSuite" data-a="${s.id}">Delete</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`);
+}
+function openNewSuite(){ suiteModal(null); }
+function editSuite(id){ suiteModal(DB.suites.find(x=>x.id===id)); }
+function suiteModal(s){
+  openModal((s?'Edit':'New')+' product suite',`
+    <div class="field"><label>Suite name <span style="color:var(--error)">*</span></label><input id="suName" value="${s?esc(s.name):''}" placeholder="e.g. Restaurant Operations Suite"></div>
+    <div class="field"><label>Description</label><textarea id="suDesc" placeholder="What this suite covers…">${s?esc(s.description||''):''}</textarea></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveSuite" ${s?`data-a="${s.id}"`:''}>${s?'Save changes':'Create suite'}</button>`);
+}
+function saveSuite(id){
+  const name=$("#suName").value.trim(); if(!name){toast('Suite name is required','error');return;}
+  if(DB.suites.some(s=>s.name.toLowerCase()===name.toLowerCase() && s.id!==id)){toast('A suite with this name already exists','error');return;}
+  const desc=$("#suDesc").value.trim();
+  if(id){const s=DB.suites.find(x=>x.id===id); if(s){s.name=name; s.description=desc;}}
+  else{ DB.suites.push({id:'SUITE-'+(DB.suites.length+1),name,description:desc}); }
+  persist(); buildProductSel(); closeOverlays(); toast('Suite '+(id?'updated':'created'),'success'); viewSuites();
+}
+function deleteSuite(id){
+  const s=DB.suites.find(x=>x.id===id); if(!s)return;
+  const used=DB.products.filter(p=>p.suiteId===id);
+  if(used.length){
+    openModal('Cannot delete suite',`<div class="note warn"><span>⚠</span><div><b>${esc(s.name)}</b> has <b>${used.length}</b> product${used.length===1?'':'s'} assigned (${used.map(p=>esc(p.name)).join(', ')}). Reassign them before deleting.</div></div>`,
+      `<button class="btn btn-primary" data-act="close">OK</button>`);
+    return;
+  }
+  openModal('Delete suite?',`<div class="note warn"><span>⚠</span><div>Delete <b>${esc(s.name)}</b>? No products reference it.</div></div>`,
+    `<button class="btn" data-act="close">Cancel</button><button class="btn btn-danger" data-act="deleteSuiteConfirm" data-a="${id}">Delete</button>`);
+}
+function deleteSuiteConfirm(id){ DB.suites=DB.suites.filter(s=>s.id!==id); persist(); closeOverlays(); toast('Suite deleted','success'); viewSuites(); }
+
+/* ---- Modules ---- */
+function viewModules(){
+  const mods=DB.modules.filter(m=>CURRENT_PRODUCT==='all'||m.product===CURRENT_PRODUCT);
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Modules</div>
+    <div class="page-sub">Each module belongs to a product. Modules show up in the Case Library when authoring a case. <b>FR-ADM-002</b></div></div>
+    <button class="btn btn-primary" data-act="openNewModule">+ New module</button>
+  </div>
+  ${mods.length?`<div class="card"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Module ID</th><th>Name</th><th>Product</th><th>Description</th><th>Cases</th><th></th></tr></thead>
+    <tbody>${mods.map(m=>{const n=DB.cases.filter(c=>c.product===m.product&&c.module===m.name).length; return `
+      <tr>
+        <td class="cell-id">${m.id}</td>
+        <td class="strong">${esc(m.name)}</td>
+        <td><span class="chip">${esc(m.product)}</span></td>
+        <td class="muted">${esc(m.description||'—')}</td>
+        <td>${n}</td>
+        <td><button class="btn btn-sm" data-act="editModule" data-a="${m.id}">Edit</button> <button class="btn btn-sm btn-danger" data-act="deleteModule" data-a="${m.id}">Delete</button></td>
+      </tr>`;}).join('')}</tbody></table></div></div>`:`<div class="card card-pad"><div class="empty">No modules${CURRENT_PRODUCT!=='all'?' for '+CURRENT_PRODUCT:''} yet. Click "+ New module" to add one.</div></div>`}
+  `);
+}
+function openNewModule(){ moduleModal(null); }
+function editModule(id){ moduleModal(DB.modules.find(x=>x.id===id)); }
+function moduleModal(m){
+  const prod=m?m.product:(CURRENT_PRODUCT!=='all'?CURRENT_PRODUCT:(productNames()[0]||''));
+  openModal((m?'Edit':'New')+' module',`
+    <div class="field"><label>Module name <span style="color:var(--error)">*</span></label><input id="moName" value="${m?esc(m.name):''}" placeholder="e.g. Authentication"></div>
+    <div class="field"><label>Product <span style="color:var(--error)">*</span></label><div class="select-wrap" style="width:100%"><select id="moProduct" style="width:100%">${productNames().map(n=>`<option ${prod===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Description</label><textarea id="moDesc" placeholder="What this module is responsible for…">${m?esc(m.description||''):''}</textarea></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveModule" ${m?`data-a="${m.id}"`:''}>${m?'Save changes':'Create module'}</button>`);
+}
+function saveModule(id){
+  const name=$("#moName").value.trim(); if(!name){toast('Module name is required','error');return;}
+  const product=$("#moProduct").value;
+  if(DB.modules.some(x=>x.name.toLowerCase()===name.toLowerCase()&&x.product===product&&x.id!==id)){toast('A module with this name already exists in '+product,'error');return;}
+  const desc=$("#moDesc").value.trim();
+  if(id){const m=DB.modules.find(x=>x.id===id); if(m){m.name=name; m.product=product; m.description=desc;}}
+  else{ DB.modules.push({id:'MOD-'+(DB.modules.length+1),name,product,description:desc}); }
+  persist(); closeOverlays(); toast('Module '+(id?'updated':'created'),'success'); viewModules();
+}
+function deleteModule(id){
+  const m=DB.modules.find(x=>x.id===id); if(!m)return;
+  openModal('Delete module?',`<div class="note warn"><span>⚠</span><div>Delete <b>${esc(m.name)}</b> (${esc(m.product)})?</div></div>`,
+    `<button class="btn" data-act="close">Cancel</button><button class="btn btn-danger" data-act="deleteModuleConfirm" data-a="${id}">Delete</button>`);
+}
+function deleteModuleConfirm(id){ DB.modules=DB.modules.filter(m=>m.id!==id); persist(); closeOverlays(); toast('Module deleted','success'); viewModules(); }
 
 /* ============================================================
    EVENT DELEGATION  (no inline handlers -> sanitizer-safe)
@@ -2193,6 +2362,16 @@ const ACTIONS={
   deleteProduct:ds=>deleteProduct(ds.a),
   saveProduct:ds=>saveProduct(ds.a),
   deleteProductConfirm:ds=>deleteProductConfirm(ds.a),
+  openNewSuite:()=>openNewSuite(),
+  editSuite:ds=>editSuite(ds.a),
+  deleteSuite:ds=>deleteSuite(ds.a),
+  saveSuite:ds=>saveSuite(ds.a),
+  deleteSuiteConfirm:ds=>deleteSuiteConfirm(ds.a),
+  openNewModule:()=>openNewModule(),
+  editModule:ds=>editModule(ds.a),
+  deleteModule:ds=>deleteModule(ds.a),
+  saveModule:ds=>saveModule(ds.a),
+  deleteModuleConfirm:ds=>deleteModuleConfirm(ds.a),
   ncPick:ds=>ncPick(ds.a,ds.b),
   ncClear:ds=>ncClear(ds.a),
   crawlFull:()=>crawlFull(),
@@ -2244,6 +2423,8 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='productSel'){CURRENT_PRODUCT=e.target.value;route();}
+  else if(e.target.id==='ncProduct'){const sel=$("#ncModule"); if(sel)setHTML(sel,ncModuleOptions(e.target.value));}
+  else if(e.target.id==='prdSuite'){const ni=$("#prdSuiteNew"); if(ni)ni.style.display=e.target.value==='__new__'?'block':'none';}
   else if(e.target.id==='histEnv'){histEnv=e.target.value;renderHistTable();}
   else if(e.target.id==='planSched'){const o=$("#schedOpts");if(o)o.style.display=e.target.checked?'block':'none';}
   else if(e.target.id==='capLogin'){const o=$("#capAuth");if(o)o.style.display=e.target.checked?'block':'none';}
