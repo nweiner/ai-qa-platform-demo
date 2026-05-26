@@ -507,11 +507,15 @@ function normCases(){
       aria:['heading: Sign In','alert: Account locked — try again in 15 minutes','textbox: Email','textbox: Password','link: Forgot password?'],
       map:[['Login.lockedAlert',"getByText('Account locked')"],['Login.emailInput',"page.getByTestId('login-email')"],['Login.forgotLink',"page.getByRole('link', { name: 'Forgot password?' })"]]});
   }
-  // cases: derive multi-page list
-  DB.cases.forEach(c=>{ if(!c.pages){
-    const cov=((c.coverage&&c.coverage.pages)||[]).map(pid=>pid.replace('PAGE-','')).map(s=>s?s.charAt(0)+s.slice(1).toLowerCase():s);
-    c.pages=[...new Set([c.page,...cov].filter(Boolean))];
-  }});
+  // cases: derive multi-page list + backfill kind + modules
+  DB.cases.forEach(c=>{
+    if(!c.pages){
+      const cov=((c.coverage&&c.coverage.pages)||[]).map(pid=>pid.replace('PAGE-','')).map(s=>s?s.charAt(0)+s.slice(1).toLowerCase():s);
+      c.pages=[...new Set([c.page,...cov].filter(Boolean))];
+    }
+    if(!c.kind)c.kind='internal';
+    if(!c.modules||!c.modules.length)c.modules=c.module&&c.module!=='—'?[c.module]:[];
+  });
 }
 function productNames(){ return (DB.products||[]).map(p=>p.name); }
 function suiteName(sid){const s=(DB.suites||[]).find(x=>x.id===sid); return s?s.name:'—';}
@@ -555,7 +559,10 @@ const STRAT_TAG={testid:'tag-green',role:'tag-blue',label:'tag-cyan',text:'tag-p
 const STAB_TAG={High:'tag-green',Med:'tag-orange',Low:'tag-red'};
 
 function tag(text,cls){return `<span class="tag ${cls}">${esc(text)}</span>`;}
-function filteredCases(){return CURRENT_PRODUCT==="all"?DB.cases:DB.cases.filter(c=>c.product===CURRENT_PRODUCT);}
+function filteredCases(){
+  if(CURRENT_PRODUCT==="all")return DB.cases;
+  return DB.cases.filter(c=>c.product===CURRENT_PRODUCT||(c.kind==='cross-product'&&(c.steps||[]).some(s=>s.product===CURRENT_PRODUCT)));
+}
 function filteredPages(){return CURRENT_PRODUCT==="all"?DB.pages:DB.pages.filter(p=>p.product===CURRENT_PRODUCT);}
 
 /* ---- overlays ---- */
@@ -746,30 +753,37 @@ function renderCaseTable(){
   const host=$("#caseTableHost"); if(!host)return;
   /* Sanitize a COMPLETE table — DOMPurify drops bare <tr> injected into a <tbody>. */
   setHTML(host,`<table class="tbl">
-    <thead><tr><th>Case ID</th><th>Title</th><th>Module</th><th>Priority</th><th>Type</th><th>Automation</th><th>Last run</th></tr></thead>
-    <tbody>${rows.length?rows.map(c=>`
+    <thead><tr><th>Case ID</th><th>Title</th><th>Kind</th><th>Modules</th><th>Priority</th><th>Type</th><th>Automation</th><th>Last run</th></tr></thead>
+    <tbody>${rows.length?rows.map(c=>{
+      const mods=(c.modules&&c.modules.length)?c.modules:(c.module&&c.module!=='—'?[c.module]:[]);
+      const modCell=mods.length?(mods.slice(0,2).map(m=>esc(m)).join(', ')+(mods.length>2?` <span class="muted">+${mods.length-2}</span>`:'')):'<span class="muted">—</span>';
+      return `
       <tr class="clickable" data-act="openCase" data-a="${c.id}">
         <td class="cell-id">${c.id}</td>
         <td><div class="strong">${esc(c.title)}</div></td>
-        <td>${esc(c.module)}</td>
+        <td>${c.kind==='cross-product'?tag('cross-product','tag-purple'):tag('internal','tag-blue')}</td>
+        <td>${modCell}</td>
         <td>${tag(c.priority,PRIO_TAG[c.priority])}</td>
         <td><span class="chip">${c.type}</span></td>
         <td>${tag(c.status,STATUS_TAG[c.status])}</td>
         <td>${c.lastRun?tag(c.lastRun,RES_TAG[c.lastRun]):'<span class="muted">—</span>'}</td>
-      </tr>`).join(""):`<tr><td colspan="7"><div class="empty">No cases match your filters.</div></td></tr>`}</tbody>
+      </tr>`;}).join(""):`<tr><td colspan="8"><div class="empty">No cases match your filters.</div></td></tr>`}</tbody>
   </table>`);
 }
 function openCase(id){
   const c=DB.cases.find(x=>x.id===id);
   const sc=c.script?DB.scripts.find(s=>s.id===c.script):null;
+  const kind=c.kind||'internal';
+  const mods=(c.modules&&c.modules.length)?c.modules:(c.module&&c.module!=='—'?[c.module]:[]);
+  const stepProducts=kind==='cross-product'?[...new Set((c.steps||[]).map(s=>s.product).filter(Boolean))]:[];
   const body=`
     <div class="between" style="margin-bottom:14px">
       <div><div class="cell-id" style="font-size:13px">${c.id}</div><div style="font-size:17px;font-weight:600;margin-top:2px">${esc(c.title)}</div></div>
-      ${tag(c.status,STATUS_TAG[c.status])}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${kind==='cross-product'?tag('cross-product','tag-purple'):tag('internal','tag-blue')} ${tag(c.status,STATUS_TAG[c.status])}</div>
     </div>
     <dl class="dl">
-      <dt>Product</dt><dd>${esc(c.product)}</dd>
-      <dt>Module</dt><dd>${esc(c.module)} · ${esc(c.feature)}</dd>
+      <dt>Product${kind==='cross-product'?'s':''}</dt><dd>${kind==='cross-product'?(stepProducts.length?stepProducts.map(x=>tag(x,'tag-blue')).join(' '):'<span class="muted">—</span>'):esc(c.product)}</dd>
+      <dt>Module${mods.length>1?'s':''}</dt><dd>${mods.length?mods.map(m=>tag(m,'tag-cyan')).join(' '):'<span class="muted">—</span>'}${c.feature?` <span class="muted" style="font-size:12px">· ${esc(c.feature)}</span>`:''}</dd>
       <dt>Pages</dt><dd>${casePages(c).map(pn=>`<a href="#pages" class="tag tag-cyan" style="text-decoration:none">${esc(pn)}</a>`).join(' ')||'<span class="muted">—</span>'}</dd>
       <dt>Priority</dt><dd>${tag(c.priority,PRIO_TAG[c.priority])}</dd>
       <dt>Type</dt><dd>${c.type}</dd>
@@ -781,7 +795,7 @@ function openCase(id){
     <div class="section-title" style="font-size:14px;margin-top:18px">Page preview <span class="muted" style="font-weight:400">— simplified diagram from the ARIA snapshot</span></div>
     <div class="row" style="gap:12px">${casePages(c).map(pn=>{const pg=pageByNameOrId(pn);return `<div style="flex:1;min-width:200px;max-width:300px"><div class="muted" style="font-size:11px;margin-bottom:5px">${esc(pn)}${pg?'':' · not registered'}</div>${pageDiagram(pg)}</div>`;}).join('')||'<div class="muted">No pages linked.</div>'}</div>
     <div class="section-title" style="font-size:14px;margin-top:18px">Steps</div>
-    <ol class="steps">${c.steps.map((s,i)=>{const pg=s.page&&DB.pages.find(p=>p.id===s.page);return `<li><span class="n">${i+1}</span><div class="act"><div>${esc(s.a)} ${s.v?`<span class="muted">→ "${esc(s.v)}"</span>`:''}</div><div class="tgt">${pg?pg.id+' · ':''}${esc(s.t||'')}</div>${s.instr?`<div class="muted" style="font-size:12px;margin-top:4px"><b>Notes:</b> ${esc(s.instr)}</div>`:''}${s.exp?`<div style="font-size:12px;margin-top:4px;color:#389e0d"><b>↳ Expected:</b> ${esc(s.exp)}</div>`:''}</div></li>`;}).join("")}</ol>
+    <ol class="steps">${c.steps.map((s,i)=>{const pg=s.page&&DB.pages.find(p=>p.id===s.page);return `<li><span class="n">${i+1}</span><div class="act"><div>${esc(s.a)} ${s.v?`<span class="muted">→ "${esc(s.v)}"</span>`:''}</div>${kind==='cross-product'?`<div style="font-size:12px;margin-top:4px"><span class="tag tag-blue">${esc(s.product||'—')}</span> <span class="tag tag-cyan">${esc(s.module||'—')}</span></div>`:''}<div class="tgt">${pg?pg.id+' · ':''}${esc(s.t||'')}</div>${s.instr?`<div class="muted" style="font-size:12px;margin-top:4px"><b>Notes:</b> ${esc(s.instr)}</div>`:''}${s.exp?`<div style="font-size:12px;margin-top:4px;color:#389e0d"><b>↳ Expected:</b> ${esc(s.exp)}</div>`:''}</div></li>`;}).join("")}</ol>
     <div class="section-title" style="font-size:14px;margin-top:18px">Expected result</div>
     <ul style="margin:0 0 4px 18px;color:rgba(0,0,0,.65)">${c.expected.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>
     <div class="divider"></div>
@@ -823,50 +837,83 @@ function openDedupe(){
 
 /* ---- Manual case entry ---- */
 const PFX={'Back Office':'BO','Online Order':'OO','POS':'POS','KDS':'KDS','Kiosk':'KSK'};
-let newCaseSteps=[];
+let nc=null;
 function openNewCase(){
-  newCaseSteps=[{q:'',pageId:null,op:'',instr:'',exp:''}];
   const prod=CURRENT_PRODUCT==='all'?(productNames()[0]||'Back Office'):CURRENT_PRODUCT;
-  const suggested=(PFX[prod]||'BO')+'-CASE-'+String(DB.cases.length+1).padStart(3,'0');
-  openModalWide('New test case',`
-    <div class="row" style="gap:12px">
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Case ID</label><input id="ncId" value="${suggested}"></div>
-      <div class="field" style="flex:2;margin-bottom:12px"><label>Title</label><input id="ncTitle" placeholder="e.g. Valid user can log in successfully"></div>
-    </div>
-    <div class="row" style="gap:12px">
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="ncProduct" style="width:100%">${productNames().map(x=>`<option ${prod===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div></div>
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Module</label><div class="select-wrap" style="width:100%"><select id="ncModule" style="width:100%">${ncModuleOptions(prod)}</select></div><div class="muted" style="font-size:11px;margin-top:4px">Manage in Settings → Modules</div></div>
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Feature</label><input id="ncFeature" placeholder="e.g. Login"></div>
-    </div>
-    <div class="row" style="gap:12px">
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Priority</label><div class="select-wrap" style="width:100%"><select id="ncPriority" style="width:100%"><option>High</option><option selected>Medium</option><option>Low</option></select></div></div>
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Type</label><div class="select-wrap" style="width:100%"><select id="ncType" style="width:100%"><option>Positive</option><option>Negative</option></select></div></div>
-    </div>
-    <div class="field"><label>Preconditions <span class="muted">(one per line)</span></label><textarea id="ncPre" placeholder="The user account exists&#10;The user is active"></textarea></div>
-    <div class="section-title" style="font-size:14px">Steps <span class="muted" style="font-weight:400">— each step targets a page (pick from thumbnails) with operation, instructions &amp; expected result</span></div>
-    <div id="ncSteps"></div>
-    <button class="btn btn-sm" data-act="ncAddStep" style="margin-bottom:14px">+ Add step</button>
-    <div class="note"><span>ⓘ</span><div>Saved as a <b>manual</b> case. Pages are derived from the page selected on each step. Open its detail and use <b>✦ Generate script</b> to automate it. <b>FR-CASE-003</b></div></div>
-  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveCase">Save case</button>`);
+  nc={
+    kind:'internal',
+    id:(PFX[prod]||'BO')+'-CASE-'+String(DB.cases.length+1).padStart(3,'0'),
+    title:'', product:prod, modules:[], feature:'', priority:'Medium', type:'Positive', pre:'',
+    steps:[{q:'',pageId:null,op:'',instr:'',exp:''}]
+  };
+  openModalWide('New test case', ncBody(),
+    `<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveCase">Save case</button>`);
   renderNcSteps();
 }
-function ncModuleOptions(productName){
+function ncBody(){
+  const k=nc.kind;
+  return `
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Case ID</label><input id="ncId" value="${esc(nc.id)}"></div>
+      <div class="field" style="flex:2;margin-bottom:12px"><label>Title</label><input id="ncTitle" value="${esc(nc.title)}" placeholder="e.g. Valid user can log in successfully"></div>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Case kind</label>
+      <div class="radio-row" style="margin-top:4px">
+        <div class="radio-card ${k==='internal'?'sel':''}" data-act="ncKind" data-a="internal"><b>Product-internal</b><small>Tests inside a single product. Pick the product &amp; modules at the case level.</small></div>
+        <div class="radio-card ${k==='cross-product'?'sel':''}" data-act="ncKind" data-a="cross-product"><b>Cross-product</b><small>Workflow that spans multiple products — each step picks its own product &amp; module.</small></div>
+      </div>
+    </div>
+    ${k==='internal' ? `
+      <div class="row" style="gap:12px">
+        <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="ncProduct" style="width:100%">${productNames().map(x=>`<option ${nc.product===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div></div>
+        <div class="field" style="flex:1;margin-bottom:12px"><label>Feature</label><input id="ncFeature" value="${esc(nc.feature)}" placeholder="e.g. Login"></div>
+      </div>
+      <div class="field" style="margin-bottom:12px"><label>Modules <span class="muted">(select one or more)</span></label>
+        <div id="ncModulesList" style="margin-top:6px">${ncModulesCheckboxesHTML(nc.product)}</div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Manage modules in Settings → Modules.</div>
+      </div>
+    ` : `
+      <div class="note purple" style="margin-bottom:12px"><span>⇄</span><div><b>Cross-product case.</b> Each step below picks its own product &amp; module. The case-level product / modules are derived from the steps.</div></div>
+    `}
+    <div class="row" style="gap:12px">
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Priority</label><div class="select-wrap" style="width:100%"><select id="ncPriority" style="width:100%">${['High','Medium','Low'].map(p=>`<option ${nc.priority===p?'selected':''}>${p}</option>`).join('')}</select></div></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Type</label><div class="select-wrap" style="width:100%"><select id="ncType" style="width:100%">${['Positive','Negative'].map(p=>`<option ${nc.type===p?'selected':''}>${p}</option>`).join('')}</select></div></div>
+    </div>
+    <div class="field"><label>Preconditions <span class="muted">(one per line)</span></label><textarea id="ncPre" placeholder="The user account exists&#10;The user is active">${esc(nc.pre)}</textarea></div>
+    <div class="section-title" style="font-size:14px">Steps <span class="muted" style="font-weight:400">— ${k==='cross-product'?'each step picks product &amp; module':'page + operation / instructions / expected result'}</span></div>
+    <div id="ncSteps"></div>
+    <button class="btn btn-sm" data-act="ncAddStep" style="margin-bottom:14px">+ Add step</button>
+    <div class="note"><span>ⓘ</span><div>Saved as a <b>manual</b> case. Pages and modules are derived from the steps. Open the case detail and use <b>✦ Generate script</b> to automate it. <b>FR-CASE-003</b></div></div>
+  `;
+}
+function ncModulesCheckboxesHTML(productName){
   const mods=modulesForProduct(productName);
-  if(!mods.length)return `<option value="">(no modules — add in Settings → Modules)</option>`;
-  return mods.map(m=>`<option>${esc(m.name)}</option>`).join('');
+  if(!mods.length)return '<div class="muted" style="font-size:12px">No modules for '+esc(productName)+' yet — add them in Settings → Modules.</div>';
+  return `<div class="row" style="gap:6px;flex-wrap:wrap">${mods.map(m=>`<label class="check" style="margin:0;padding:6px 12px;display:inline-flex;cursor:pointer"><input type="checkbox" data-ncmod="${esc(m.name)}" ${nc.modules.includes(m.name)?'checked':''}><div class="meta" style="font-size:13px;font-weight:500">${esc(m.name)}</div></label>`).join('')}</div>`;
 }
 function ncThumbsHTML(i){
-  const s=newCaseSteps[i];
-  const m=(s.q?DB.pages.filter(p=>(p.id+' '+p.route+' '+(p.product||'')).toLowerCase().includes(s.q.toLowerCase())):DB.pages).slice(0,6);
-  return m.length?m.map(p=>`<div class="thumb ${s.pageId===p.id?'sel':''}" data-act="ncPick" data-a="${i}" data-b="${p.id}">${pageDiagram(p,true)}<div class="tlabel"><input type="checkbox" ${s.pageId===p.id?'checked':''} tabindex="-1"><span class="cell-id">${p.id}</span></div></div>`).join(''):'<div class="muted">No matching saved pages — register/crawl pages first.</div>';
+  const s=nc.steps[i];
+  const prod = nc.kind==='cross-product' ? s.product : nc.product;
+  let cand=DB.pages;
+  if(prod) cand=cand.filter(p=>p.product===prod);
+  const m=(s.q?cand.filter(p=>(p.id+' '+p.route+' '+(p.product||'')).toLowerCase().includes(s.q.toLowerCase())):cand).slice(0,6);
+  return m.length?m.map(p=>`<div class="thumb ${s.pageId===p.id?'sel':''}" data-act="ncPick" data-a="${i}" data-b="${p.id}">${pageDiagram(p,true)}<div class="tlabel"><input type="checkbox" ${s.pageId===p.id?'checked':''} tabindex="-1"><span class="cell-id">${p.id}</span></div></div>`).join(''):'<div class="muted">'+(prod?'No matching pages in '+esc(prod)+'.':'Pick a product first.')+'</div>';
 }
 function renderNcSteps(){
   const host=$("#ncSteps"); if(!host)return;
-  setHTML(host, newCaseSteps.map((s,i)=>{
+  const k=nc.kind;
+  setHTML(host, nc.steps.map((s,i)=>{
     const conf=s.pageId?DB.pages.find(p=>p.id===s.pageId):null;
     return `<div class="gb-step">
-      <div class="gb-step-head"><div style="display:flex;align-items:center;gap:8px"><span class="gb-badge">${i+1}</span><span class="strong">Step ${i+1}</span></div>${newCaseSteps.length>1?`<button class="x" data-act="ncDelStep" data-a="${i}" title="Remove step">✕</button>`:''}</div>
-      <div class="field" style="margin-bottom:8px"><label>Page</label><input class="sinp" style="width:100%" data-ncq="${i}" value="${esc(s.q)}" placeholder="Type a page name or route, e.g. login / users"></div>
+      <div class="gb-step-head"><div style="display:flex;align-items:center;gap:8px"><span class="gb-badge">${i+1}</span><span class="strong">Step ${i+1}</span></div>${nc.steps.length>1?`<button class="x" data-act="ncDelStep" data-a="${i}" title="Remove step">✕</button>`:''}</div>
+      ${k==='cross-product'?`
+        <div class="row" style="gap:12px">
+          <div class="field" style="flex:1;margin-bottom:8px"><label>Product</label><div class="select-wrap" style="width:100%"><select data-ncstepprod="${i}" style="width:100%"><option value="">— select product —</option>${productNames().map(n=>`<option ${s.product===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div></div>
+          <div class="field" style="flex:1;margin-bottom:8px"><label>Module</label><div class="select-wrap" style="width:100%"><select data-ncstepmod="${i}" style="width:100%">${s.product?`<option value="">— select module —</option>${modulesForProduct(s.product).map(m=>`<option ${s.module===m.name?'selected':''}>${esc(m.name)}</option>`).join('')}`:`<option value="">(select a product first)</option>`}</select></div></div>
+        </div>
+      `:''}
+      <div class="field" style="margin-bottom:8px"><label>Page</label><input class="sinp" style="width:100%" data-ncq="${i}" value="${esc(s.q)}" placeholder="Type a page name or route"></div>
       ${conf
         ? `<div class="note" style="margin-bottom:8px"><span>✓</span><div>Page: <b>${conf.id}</b> <span class="muted">(${conf.route})</span> · <a data-act="ncClear" data-a="${i}" style="cursor:pointer;color:#1677ff">change</a></div></div>`
         : `<div class="muted" style="font-size:12px;margin-bottom:6px">Matching pages — check one to confirm:</div><div class="thumbgrid" id="ncThumbs${i}" style="margin-bottom:8px">${ncThumbsHTML(i)}</div>`}
@@ -876,33 +923,58 @@ function renderNcSteps(){
     </div>`;
   }).join(''));
 }
-function ncSyncSteps(){
-  document.querySelectorAll('[data-ncq]').forEach(el=>{const i=+el.dataset.ncq; if(newCaseSteps[i])newCaseSteps[i].q=el.value;});
-  document.querySelectorAll('[data-ncop]').forEach(el=>{const i=+el.dataset.ncop; if(newCaseSteps[i])newCaseSteps[i].op=el.value;});
-  document.querySelectorAll('[data-ncinstr]').forEach(el=>{const i=+el.dataset.ncinstr; if(newCaseSteps[i])newCaseSteps[i].instr=el.value;});
-  document.querySelectorAll('[data-ncexp]').forEach(el=>{const i=+el.dataset.ncexp; if(newCaseSteps[i])newCaseSteps[i].exp=el.value;});
+function ncSyncTop(){
+  if(!nc)return;
+  if($("#ncId"))nc.id=$("#ncId").value.trim();
+  if($("#ncTitle"))nc.title=$("#ncTitle").value.trim();
+  if($("#ncProduct"))nc.product=$("#ncProduct").value;
+  if($("#ncFeature"))nc.feature=$("#ncFeature").value.trim();
+  if($("#ncPriority"))nc.priority=$("#ncPriority").value;
+  if($("#ncType"))nc.type=$("#ncType").value;
+  if($("#ncPre"))nc.pre=$("#ncPre").value;
+  if(document.querySelector('[data-ncmod]')) nc.modules=[...document.querySelectorAll('[data-ncmod]:checked')].map(el=>el.dataset.ncmod);
 }
-function ncAddStep(){ ncSyncSteps(); newCaseSteps.push({q:'',pageId:null,op:'',instr:'',exp:''}); renderNcSteps(); }
-function ncDelStep(i){ ncSyncSteps(); newCaseSteps.splice(+i,1); if(!newCaseSteps.length)newCaseSteps.push({q:'',pageId:null,op:'',instr:'',exp:''}); renderNcSteps(); }
-function ncPick(i,pid){ ncSyncSteps(); newCaseSteps[+i].pageId=pid; renderNcSteps(); }
-function ncClear(i){ ncSyncSteps(); newCaseSteps[+i].pageId=null; renderNcSteps(); }
+function ncSyncSteps(){
+  if(!nc)return;
+  document.querySelectorAll('[data-ncq]').forEach(el=>{const i=+el.dataset.ncq; if(nc.steps[i])nc.steps[i].q=el.value;});
+  document.querySelectorAll('[data-ncop]').forEach(el=>{const i=+el.dataset.ncop; if(nc.steps[i])nc.steps[i].op=el.value;});
+  document.querySelectorAll('[data-ncinstr]').forEach(el=>{const i=+el.dataset.ncinstr; if(nc.steps[i])nc.steps[i].instr=el.value;});
+  document.querySelectorAll('[data-ncexp]').forEach(el=>{const i=+el.dataset.ncexp; if(nc.steps[i])nc.steps[i].exp=el.value;});
+  document.querySelectorAll('[data-ncstepprod]').forEach(el=>{const i=+el.dataset.ncstepprod; if(nc.steps[i])nc.steps[i].product=el.value;});
+  document.querySelectorAll('[data-ncstepmod]').forEach(el=>{const i=+el.dataset.ncstepmod; if(nc.steps[i])nc.steps[i].module=el.value;});
+}
+function ncSyncAll(){ ncSyncTop(); ncSyncSteps(); }
+function ncRenderAll(){ const mb=$("#modal .modal-body"); if(mb)setHTML(mb,ncBody()); renderNcSteps(); }
+function ncKind(k){
+  ncSyncAll(); nc.kind=k;
+  nc.steps=nc.steps.map(s=>{const b={q:s.q||'',pageId:s.pageId||null,op:s.op||'',instr:s.instr||'',exp:s.exp||''}; if(k==='cross-product'){b.product=s.product||''; b.module=s.module||'';} return b;});
+  ncRenderAll();
+}
+function ncAddStep(){ ncSyncAll(); nc.steps.push(nc.kind==='cross-product'?{q:'',pageId:null,op:'',instr:'',exp:'',product:'',module:''}:{q:'',pageId:null,op:'',instr:'',exp:''}); renderNcSteps(); }
+function ncDelStep(i){ ncSyncAll(); nc.steps.splice(+i,1); if(!nc.steps.length)nc.steps.push(nc.kind==='cross-product'?{q:'',pageId:null,op:'',instr:'',exp:'',product:'',module:''}:{q:'',pageId:null,op:'',instr:'',exp:''}); renderNcSteps(); }
+function ncPick(i,pid){ ncSyncAll(); nc.steps[+i].pageId=pid; renderNcSteps(); }
+function ncClear(i){ ncSyncAll(); nc.steps[+i].pageId=null; renderNcSteps(); }
 function saveCase(){
-  const g=id=>{const e=$(id);return e?e.value.trim():'';};
-  const id=g('#ncId')||('NEW-'+(DB.cases.length+1));
+  ncSyncAll();
+  const id=nc.id||('NEW-'+(DB.cases.length+1));
   if(DB.cases.some(c=>c.id===id)){toast('Case ID '+id+' already exists','error');return;}
-  const title=g('#ncTitle'); if(!title){toast('Title is required','error');return;}
-  ncSyncSteps();
+  if(!nc.title){toast('Title is required','error');return;}
   const lines=v=>(v||'').split('\n').map(x=>x.trim()).filter(Boolean);
-  const pageObjs=[...new Set(newCaseSteps.filter(s=>s.pageId).map(s=>s.pageId))].map(pid=>DB.pages.find(p=>p.id===pid)).filter(Boolean);
+  const valid=nc.steps.filter(s=>(s.op||'').trim()&&(nc.kind==='internal'||s.product));
+  if(!valid.length){toast(nc.kind==='cross-product'?'Add at least one step with a product and operation':'Add at least one step with an operation','error');return;}
+  let product, modules;
+  if(nc.kind==='internal'){ product=nc.product; modules=nc.modules.slice(); }
+  else { product='Cross-product'; modules=[...new Set(valid.map(s=>s.module).filter(Boolean))]; }
+  const pageObjs=[...new Set(valid.filter(s=>s.pageId).map(s=>s.pageId))].map(pid=>DB.pages.find(p=>p.id===pid)).filter(Boolean);
   const pageNames=pageObjs.map(p=>{const n=p.id.replace('PAGE-','');return n.charAt(0)+n.slice(1).toLowerCase();});
-  const validSteps=newCaseSteps.filter(s=>(s.op||'').trim());
-  if(!validSteps.length){toast('Add at least one step with an operation','error');return;}
-  const c={id,title,product:g('#ncProduct'),module:g('#ncModule')||'—',feature:g('#ncFeature')||'—',
-    page:pageNames[0]||'—',pages:pageNames.length?pageNames:['—'],
-    priority:g('#ncPriority'),type:g('#ncType'),status:'manual',script:null,
-    pre:lines($('#ncPre').value),
-    steps:validSteps.map(s=>{const pg=s.pageId&&DB.pages.find(p=>p.id===s.pageId);const tgt=pg&&pg.map&&pg.map[0]?pg.map[0][0]:(pg?pg.id:'—');return {a:s.op,t:tgt,instr:s.instr||undefined,exp:s.exp||undefined,page:s.pageId||undefined};}),
-    expected:[...new Set(validSteps.map(s=>(s.exp||'').trim()).filter(Boolean))],
+  const c={
+    id,title:nc.title,kind:nc.kind,
+    product, modules, module:modules[0]||'—', feature:nc.feature||'—',
+    page:pageNames[0]||'—', pages:pageNames.length?pageNames:['—'],
+    priority:nc.priority,type:nc.type,status:'manual',script:null,
+    pre:lines(nc.pre),
+    steps:valid.map(s=>{const pg=s.pageId&&DB.pages.find(p=>p.id===s.pageId);const tgt=pg&&pg.map&&pg.map[0]?pg.map[0][0]:(pg?pg.id:'—'); const out={a:s.op,t:tgt,instr:s.instr||undefined,exp:s.exp||undefined,page:s.pageId||undefined}; if(nc.kind==='cross-product'){out.product=s.product||undefined; out.module=s.module||undefined;} return out;}),
+    expected:[...new Set(valid.map(s=>(s.exp||'').trim()).filter(Boolean))],
     coverage:{requirements:[],pages:pageObjs.map(p=>p.id),features:[]}, lastRun:null};
   DB.cases.unshift(c); persist(); closeOverlays(); toast('Case '+id+' created','success');
   if((location.hash.slice(1)||'')==='cases')viewCases();
@@ -1005,13 +1077,14 @@ function gsAccept(){
 /* ============================================================
    VIEW: PAGE REGISTRY
    ============================================================ */
-let pageSearch='';
+let pageSearch='', pageProduct='', pagePage=1;
+const PAGE_SIZE=4;
 function viewPages(){
   const ups=(DB.updates||[]).filter(u=>CURRENT_PRODUCT==='all'||u.product===CURRENT_PRODUCT);
   render(`
   <div class="page-head">
     <div><div class="page-title">Page Registry</div>
-    <div class="page-sub">Search-first registry — with many pages, results appear only after you search. <b>FR-PAGE-001…008</b></div></div>
+    <div class="page-sub">Pick a product to see its pages — search and paginate as needed. <b>FR-PAGE-001…008</b></div></div>
     <div class="btn-row">
       <button class="btn" data-act="openCapture">+ Register page</button>
       <button class="btn" data-act="crawlFull">⛓ Crawl full site</button>
@@ -1020,28 +1093,44 @@ function viewPages(){
   </div>
   ${ups.length?`<div class="card card-pad" style="margin-bottom:16px"><div class="section-title" style="font-size:14px">Recorded software updates <span class="muted" style="font-weight:400">— pages re-profiled per release</span></div>${ups.map(u=>`<div class="between" style="padding:7px 0;border-bottom:1px solid var(--border)"><div><span class="tag tag-purple">⟳ ${esc(u.label)}</span> <span class="muted" style="font-size:12px">${esc(u.system||u.product)} · ${u.date}</span></div><div class="muted" style="font-size:12px">${u.pages.length} pages: ${u.pages.map(esc).join(', ')}</div></div>`).join('')}</div>`:''}
   <div class="toolbar">
-    <div class="search" style="max-width:560px;flex:1"><span class="si">⌕</span><input id="pageSearchInput" placeholder="Search by id, route, product, update, ARIA contents, or locator name…" value="${esc(pageSearch)}"></div>
-    <button class="btn btn-sm" id="pageClearBtn" data-act="clearPageSearch" style="display:${pageSearch?'inline-flex':'none'}">✕ Clear</button>
+    <div class="select-wrap" style="min-width:230px"><select id="pageProductSel">
+      <option value="">— Select a product —</option>
+      ${productNames().map(n=>`<option value="${esc(n)}" ${pageProduct===n?'selected':''}>${esc(n)}</option>`).join('')}
+      <option value="__all__" ${pageProduct==='__all__'?'selected':''}>All products</option>
+    </select></div>
+    <div class="search" style="max-width:380px;flex:1"><span class="si">⌕</span><input id="pageSearchInput" placeholder="Search within results…" value="${esc(pageSearch)}"></div>
+    <button class="btn btn-sm" id="pageClearBtn" data-act="clearPageSearch" style="display:${pageSearch||pageProduct?'inline-flex':'none'}">✕ Clear</button>
     <div class="topbar-spacer"></div>
     <span class="muted" id="pageCount"></span>
   </div>
-  <div id="pageGrid"></div>`);
+  <div id="pageGrid"></div>
+  <div id="pagePager"></div>`);
   renderPageGrid();
 }
 function renderPageGrid(){
   const host=$("#pageGrid"); if(!host)return;
-  const q=(pageSearch||'').trim().toLowerCase();
   const cnt=$("#pageCount");
-  if(!q){ if(cnt)cnt.textContent=DB.pages.length+' total · type to search';
-    setHTML(host,`<div class="card card-pad" style="text-align:center;padding:56px 24px"><div style="font-size:42px;color:var(--text-3)">⌕</div><div class="strong" style="margin-top:10px">Start typing to search the Page Registry</div><div class="muted" style="margin-top:6px;font-size:13px">${DB.pages.length} page profile${DB.pages.length===1?'':'s'} available. Search matches id, route, product, update label, ARIA contents, and locator names.</div></div>`); return; }
-  let pages=filteredPages();
-  pages=pages.filter(p=>{
-    const hay=(p.id+' '+p.route+' '+(p.product||'')+' '+(p.update||'')+' '+((p.aria||[]).join(' '))+' '+((p.map||[]).map(m=>m[0]).join(' '))).toLowerCase();
-    return hay.includes(q);
-  });
-  if(cnt)cnt.textContent=`${pages.length} match${pages.length===1?'':'es'} of ${DB.pages.length}`;
-  if(!pages.length){ setHTML(host,`<div class="card card-pad"><div class="empty">No pages match “${esc(pageSearch)}”.</div></div>`); return; }
-  setHTML(host,`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${pages.map(p=>{const vc=(p.variants&&p.variants.length)||1;return `
+  if(!pageProduct && !pageSearch){
+    if(cnt)cnt.textContent=DB.pages.length+' total';
+    setHTML(host,`<div class="card card-pad" style="text-align:center;padding:56px 24px"><div style="font-size:42px;color:var(--text-3)">⌕</div><div class="strong" style="margin-top:10px">Select a product to see its pages</div><div class="muted" style="margin-top:6px;font-size:13px">${DB.pages.length} page profile${DB.pages.length===1?'':'s'} across ${productNames().length} product${productNames().length===1?'':'s'}. You can also type to search across everything.</div></div>`);
+    setHTML($("#pagePager"),'');
+    return;
+  }
+  let pages=DB.pages.slice();
+  if(pageProduct && pageProduct!=='__all__') pages=pages.filter(p=>p.product===pageProduct);
+  if(pageSearch){
+    const q=pageSearch.toLowerCase();
+    pages=pages.filter(p=>(p.id+' '+p.route+' '+(p.product||'')+' '+(p.update||'')+' '+((p.aria||[]).join(' '))+' '+((p.map||[]).map(m=>m[0]).join(' '))).toLowerCase().includes(q));
+  }
+  const total=pages.length;
+  const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(pagePage>totalPages)pagePage=totalPages;
+  if(pagePage<1)pagePage=1;
+  const start=(pagePage-1)*PAGE_SIZE;
+  const slice=pages.slice(start,start+PAGE_SIZE);
+  if(cnt)cnt.textContent=total?`${total} page${total===1?'':'s'} · showing ${start+1}–${Math.min(start+PAGE_SIZE,total)} of ${total}`:'no matches';
+  if(!total){ setHTML(host,`<div class="card card-pad"><div class="empty">No pages match the current filter.</div></div>`); setHTML($("#pagePager"),''); return; }
+  setHTML(host,`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${slice.map(p=>{const vc=(p.variants&&p.variants.length)||1;return `
     <div class="card card-pad" style="cursor:pointer" data-act="openPage" data-a="${p.id}">
       <div class="between" style="margin-bottom:8px"><span class="cell-id">${p.id}</span>${p.drift?tag('drift','tag-orange'):tag('stable','tag-green')}</div>
       ${pageDiagram(p,true)}
@@ -1050,8 +1139,20 @@ function renderPageGrid(){
         <span>◫ ${vc>1?vc+' variants':p.aria.length+' aria'}</span><span>⌖ ${p.map.length} locators</span>
       </div>
     </div>`;}).join('')}</div>`);
+  renderPager(total);
 }
-function clearPageSearch(){ pageSearch=''; viewPages(); }
+function renderPager(total){
+  const tp=Math.ceil(total/PAGE_SIZE);
+  if(tp<=1){setHTML($("#pagePager"),'');return;}
+  const nums=[];for(let i=1;i<=tp;i++)nums.push(i);
+  setHTML($("#pagePager"),`<div class="toolbar" style="justify-content:center;margin-top:14px;gap:6px">
+    <button class="btn btn-sm" data-act="pgGo" data-a="${Math.max(1,pagePage-1)}" ${pagePage===1?'disabled':''}>‹ Prev</button>
+    ${nums.map(i=>`<button class="btn btn-sm ${i===pagePage?'btn-primary':''}" data-act="pgGo" data-a="${i}">${i}</button>`).join('')}
+    <button class="btn btn-sm" data-act="pgGo" data-a="${Math.min(tp,pagePage+1)}" ${pagePage===tp?'disabled':''}>Next ›</button>
+  </div>`);
+}
+function pgGo(n){ pagePage=+n; renderPageGrid(); }
+function clearPageSearch(){ pageSearch=''; pageProduct=''; pagePage=1; viewPages(); }
 let pageDrawerVariants=null, pageDrawerCurId=null;
 function openPage(id){
   const p=DB.pages.find(x=>x.id===id); if(!p)return;
@@ -2351,6 +2452,7 @@ const ACTIONS={
   openCapture:()=>openCapture(),
   recapture:ds=>recapture(ds.a),
   clearPageSearch:()=>clearPageSearch(),
+  pgGo:ds=>pgGo(ds.a),
   pvTab:ds=>pvTab(ds.a),
   addVariant:ds=>addVariant(ds.a),
   saveVariant:ds=>saveVariant(ds.a),
@@ -2374,6 +2476,7 @@ const ACTIONS={
   deleteModuleConfirm:ds=>deleteModuleConfirm(ds.a),
   ncPick:ds=>ncPick(ds.a,ds.b),
   ncClear:ds=>ncClear(ds.a),
+  ncKind:ds=>ncKind(ds.a),
   crawlFull:()=>crawlFull(),
   crawlUpdate:()=>crawlUpdate(),
   crawlStart:()=>crawlStart(),
@@ -2417,13 +2520,16 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{
   if(e.target.id==='caseSearchInput'){caseSearch=e.target.value;renderCaseTable();}
   else if(e.target.id==='histSearch'){histSearch=e.target.value;renderHistTable();}
-  else if(e.target.id==='pageSearchInput'){pageSearch=e.target.value;renderPageGrid();const b=$("#pageClearBtn");if(b)b.style.display=pageSearch?'inline-flex':'none';}
+  else if(e.target.id==='pageSearchInput'){pageSearch=e.target.value;pagePage=1;renderPageGrid();const b=$("#pageClearBtn");if(b)b.style.display=(pageSearch||pageProduct)?'inline-flex':'none';}
   else if(e.target.dataset&&e.target.dataset.gb==='q'){const i=+e.target.dataset.i;if(GB.steps[i]){GB.steps[i].q=e.target.value;const c=$("#gbThumbs"+i);if(c)setHTML(c,gbThumbsHTML(i));}}
-  else if(e.target.dataset&&e.target.dataset.ncq!==undefined){const i=+e.target.dataset.ncq;if(newCaseSteps[i]){newCaseSteps[i].q=e.target.value;const c=$("#ncThumbs"+i);if(c)setHTML(c,ncThumbsHTML(i));}}
+  else if(e.target.dataset&&e.target.dataset.ncq!==undefined){const i=+e.target.dataset.ncq;if(nc&&nc.steps[i]){nc.steps[i].q=e.target.value;const c=$("#ncThumbs"+i);if(c)setHTML(c,ncThumbsHTML(i));}}
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='productSel'){CURRENT_PRODUCT=e.target.value;route();}
-  else if(e.target.id==='ncProduct'){const sel=$("#ncModule"); if(sel)setHTML(sel,ncModuleOptions(e.target.value));}
+  else if(e.target.id==='pageProductSel'){pageProduct=e.target.value;pagePage=1;renderPageGrid();const b=$("#pageClearBtn"); if(b)b.style.display=(pageSearch||pageProduct)?'inline-flex':'none';}
+  else if(e.target.id==='ncProduct'){ ncSyncTop(); nc.product=e.target.value; nc.modules=[]; const l=$("#ncModulesList"); if(l)setHTML(l,ncModulesCheckboxesHTML(nc.product)); nc.steps.forEach(s=>s.pageId=null); renderNcSteps(); }
+  else if(e.target.dataset&&e.target.dataset.ncstepprod!==undefined){ ncSyncSteps(); const i=+e.target.dataset.ncstepprod; if(nc&&nc.steps[i]){nc.steps[i].product=e.target.value; nc.steps[i].module=''; nc.steps[i].pageId=null;} renderNcSteps(); }
+  else if(e.target.dataset&&e.target.dataset.ncstepmod!==undefined){ const i=+e.target.dataset.ncstepmod; if(nc&&nc.steps[i])nc.steps[i].module=e.target.value; }
   else if(e.target.id==='prdSuite'){const ni=$("#prdSuiteNew"); if(ni)ni.style.display=e.target.value==='__new__'?'block':'none';}
   else if(e.target.id==='histEnv'){histEnv=e.target.value;renderHistTable();}
   else if(e.target.id==='planSched'){const o=$("#schedOpts");if(o)o.style.display=e.target.checked?'block':'none';}
