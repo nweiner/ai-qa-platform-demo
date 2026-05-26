@@ -1721,21 +1721,44 @@ function aiTab(i){[0,1].forEach(n=>{const e=$("#aiTab"+n);if(e)e.style.display=n
 function acceptAI(){closeOverlays();toast('Accepted · branch feat/bo-login-001 created · PR opened','success');}
 
 /* ---- Guided builder (#5): step-by-step → AI Case + script ---- */
-let GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}],intent:'',product:''}, GBRES=null;
+let GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}],intent:'',product:'',kind:'internal',modules:[]}, GBRES=null;
+function gbModulesCheckboxesHTML(productName){
+  const mods=modulesForProduct(productName);
+  if(!mods.length)return '<div class="muted" style="font-size:12px">No modules for '+esc(productName)+' yet — add them in Settings → Modules.</div>';
+  return `<div class="row" style="gap:6px;flex-wrap:wrap">${mods.map(m=>`<label class="check" style="margin:0;padding:6px 12px;display:inline-flex;cursor:pointer"><input type="checkbox" data-gbmod="${esc(m.name)}" ${GB.modules.includes(m.name)?'checked':''}><div class="meta" style="font-size:13px;font-weight:500">${esc(m.name)}</div></label>`).join('')}</div>`;
+}
 function aiGuidedHTML(){
+  if(!GB.kind)GB.kind='internal';
+  if(!GB.modules)GB.modules=[];
   if(!GB.product) GB.product = (CURRENT_PRODUCT!=='all'&&productNames().includes(CURRENT_PRODUCT))?CURRENT_PRODUCT:(productNames()[0]||'');
+  const k=GB.kind;
   return `<div class="row" style="align-items:flex-start">
     <div class="stack" style="flex:1.2;min-width:340px">
       <div class="card card-pad">
-        <div class="section-title">Test intent &amp; product</div>
-        <div class="row" style="gap:12px">
-          <div class="field" style="flex:1;margin-bottom:0"><label>Product</label><div class="select-wrap" style="width:100%"><select id="gbProduct" style="width:100%">${productNames().map(n=>`<option ${GB.product===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div></div>
+        <div class="section-title">Case kind, product &amp; intent</div>
+        <div class="field" style="margin-bottom:12px">
+          <label>Case kind</label>
+          <div class="radio-row" style="margin-top:4px">
+            <div class="radio-card ${k==='internal'?'sel':''}" data-act="gbKind" data-a="internal"><b>Product-internal</b><small>Inside a single product. Pick the product &amp; modules at the case level.</small></div>
+            <div class="radio-card ${k==='cross-product'?'sel':''}" data-act="gbKind" data-a="cross-product"><b>Cross-product</b><small>Workflow across multiple products — each step picks its own product &amp; module.</small></div>
+          </div>
         </div>
+        ${k==='internal' ? `
+          <div class="row" style="gap:12px">
+            <div class="field" style="flex:1;margin-bottom:0"><label>Product</label><div class="select-wrap" style="width:100%"><select id="gbProduct" style="width:100%">${productNames().map(n=>`<option ${GB.product===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div></div>
+          </div>
+          <div class="field" style="margin-top:12px;margin-bottom:0"><label>Modules <span class="muted">(select one or more)</span></label>
+            <div id="gbModulesList" style="margin-top:6px">${gbModulesCheckboxesHTML(GB.product)}</div>
+            <div class="muted" style="font-size:11px;margin-top:4px">Manage in Settings → Modules.</div>
+          </div>
+        ` : `
+          <div class="note purple" style="margin-bottom:0"><span>⇄</span><div><b>Cross-product case.</b> Each step below picks its own product &amp; module — the case-level product / modules are derived from the steps.</div></div>
+        `}
         <div class="field" style="margin-top:12px;margin-bottom:0"><label>Test intent</label><textarea id="gbIntent" placeholder="What outcome are you testing? e.g. Verify a valid user can log in and reach the Dashboard.">${esc(GB.intent)}</textarea></div>
       </div>
       <div class="card card-pad">
         <div class="section-title">Build the test, step by step</div>
-        <div class="page-sub" style="margin:0 0 12px">For each step: find the page and confirm it from its thumbnail, describe the operation + instructions, and attach files/pages. AI assembles everything into a Case &amp; script. <b>FR-AI-010</b></div>
+        <div class="page-sub" style="margin:0 0 12px">${k==='cross-product'?'Each step picks its own product &amp; module, then the page (confirm via thumbnail), operation, instructions, and attachments.':'Find the page and confirm it from its thumbnail, describe the operation + instructions, and attach files/pages.'} AI assembles everything into a Case &amp; script. <b>FR-AI-010</b></div>
         <div id="gbSteps"></div>
         <button class="btn" data-act="gbAddStep">+ Add step</button>
       </div>
@@ -1748,15 +1771,25 @@ function aiGuidedHTML(){
 }
 function gbThumbsHTML(i){
   const s=GB.steps[i];
-  const matches=(s.q?DB.pages.filter(p=>(p.id+' '+p.route+' '+(p.product||'')).toLowerCase().includes(s.q.toLowerCase())):DB.pages).slice(0,6);
-  return matches.length?matches.map(p=>`<div class="thumb ${s.pageId===p.id?'sel':''}" data-act="gbPick" data-a="${i}" data-b="${p.id}">${pageDiagram(p,true)}<div class="tlabel"><input type="checkbox" ${s.pageId===p.id?'checked':''} tabindex="-1"><span class="cell-id">${p.id}</span></div></div>`).join(''):'<div class="muted">No matching saved pages — register or crawl pages first.</div>';
+  const prod = (GB.kind==='cross-product') ? s.product : GB.product;
+  let cand=DB.pages;
+  if(prod) cand=cand.filter(p=>p.product===prod);
+  const matches=(s.q?cand.filter(p=>(p.id+' '+p.route+' '+(p.product||'')).toLowerCase().includes(s.q.toLowerCase())):cand).slice(0,6);
+  return matches.length?matches.map(p=>`<div class="thumb ${s.pageId===p.id?'sel':''}" data-act="gbPick" data-a="${i}" data-b="${p.id}">${pageDiagram(p,true)}<div class="tlabel"><input type="checkbox" ${s.pageId===p.id?'checked':''} tabindex="-1"><span class="cell-id">${p.id}</span></div></div>`).join(''):'<div class="muted">'+(prod?'No matching pages in '+esc(prod)+'.':'Pick a product first.')+'</div>';
 }
 function renderGB(){
   const host=$("#gbSteps"); if(!host)return;
+  const k=GB.kind||'internal';
   setHTML(host, GB.steps.map((s,i)=>{
     const confirmed=s.pageId?DB.pages.find(p=>p.id===s.pageId):null;
     return `<div class="gb-step">
       <div class="gb-step-head"><div style="display:flex;align-items:center;gap:8px"><span class="gb-badge">${i+1}</span><span class="strong">Step ${i+1}</span></div>${GB.steps.length>1?`<button class="x" data-act="gbDelStep" data-a="${i}" title="Remove step">✕</button>`:''}</div>
+      ${k==='cross-product'?`
+        <div class="row" style="gap:12px">
+          <div class="field" style="flex:1;margin-bottom:8px"><label>Product</label><div class="select-wrap" style="width:100%"><select data-gbstepprod="${i}" style="width:100%"><option value="">— select product —</option>${productNames().map(n=>`<option ${s.product===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div></div>
+          <div class="field" style="flex:1;margin-bottom:8px"><label>Module</label><div class="select-wrap" style="width:100%"><select data-gbstepmod="${i}" style="width:100%">${s.product?`<option value="">— select module —</option>${modulesForProduct(s.product).map(m=>`<option ${s.module===m.name?'selected':''}>${esc(m.name)}</option>`).join('')}`:`<option value="">(select a product first)</option>`}</select></div></div>
+        </div>
+      `:''}
       <div class="field" style="margin-bottom:8px"><label>Find the page</label><input class="sinp" style="width:100%" data-gb="q" data-i="${i}" value="${esc(s.q)}" placeholder="Type a page name or route, e.g. login / users"></div>
       ${confirmed
         ? `<div class="note" style="margin-bottom:8px"><span>✓</span><div>Confirmed page: <b>${confirmed.id}</b> <span class="muted">(${confirmed.route})</span> · <a data-act="gbClear" data-a="${i}" style="cursor:pointer;color:#1677ff">change</a></div></div>`
@@ -1771,24 +1804,35 @@ function renderGB(){
 function gbSync(){
   const i=$("#gbIntent"); if(i)GB.intent=i.value;
   const pp=$("#gbProduct"); if(pp)GB.product=pp.value;
+  if(document.querySelector('[data-gbmod]')) GB.modules=[...document.querySelectorAll('[data-gbmod]:checked')].map(el=>el.dataset.gbmod);
   document.querySelectorAll('[data-gb]').forEach(el=>{const i=+el.dataset.i,f=el.dataset.gb; if(GB.steps[i])GB.steps[i][f]=el.value;});
+  document.querySelectorAll('[data-gbstepprod]').forEach(el=>{const i=+el.dataset.gbstepprod; if(GB.steps[i])GB.steps[i].product=el.value;});
+  document.querySelectorAll('[data-gbstepmod]').forEach(el=>{const i=+el.dataset.gbstepmod; if(GB.steps[i])GB.steps[i].module=el.value;});
 }
-function gbAddStep(){ gbSync(); GB.steps.push({q:'',pageId:null,op:'',instr:'',files:[]}); renderGB(); }
-function gbDelStep(i){ gbSync(); GB.steps.splice(+i,1); if(!GB.steps.length)GB.steps.push({q:'',pageId:null,op:'',instr:'',files:[]}); renderGB(); }
+function gbKind(k){
+  gbSync(); GB.kind=k;
+  GB.steps=GB.steps.map(s=>{const base={q:s.q||'',pageId:s.pageId||null,op:s.op||'',instr:s.instr||'',files:s.files||[]}; if(k==='cross-product'){base.product=s.product||''; base.module=s.module||'';} return base;});
+  renderAIBody();
+}
+function gbAddStep(){ gbSync(); GB.steps.push(GB.kind==='cross-product'?{q:'',pageId:null,op:'',instr:'',files:[],product:'',module:''}:{q:'',pageId:null,op:'',instr:'',files:[]}); renderGB(); }
+function gbDelStep(i){ gbSync(); GB.steps.splice(+i,1); if(!GB.steps.length)GB.steps.push(GB.kind==='cross-product'?{q:'',pageId:null,op:'',instr:'',files:[],product:'',module:''}:{q:'',pageId:null,op:'',instr:'',files:[]}); renderGB(); }
 function gbPick(i,pid){ gbSync(); GB.steps[+i].pageId=pid; renderGB(); }
 function gbClear(i){ gbSync(); GB.steps[+i].pageId=null; renderGB(); }
 function gbAttachFile(i){ gbSync(); const opts=['spec.pdf','wireframe.png','api-notes.md','session.har']; const s=GB.steps[+i]; s.files.push(opts[s.files.length%opts.length]); renderGB(); }
 function gbAttachPage(i){ gbSync(); const s=GB.steps[+i]; s.files.push('◫ '+(s.pageId||(DB.pages[0]&&DB.pages[0].id)||'PAGE')); renderGB(); }
 function gbDelFile(i,fi){ gbSync(); GB.steps[+i].files.splice(+fi,1); renderGB(); }
 function gbBuildCase(){
-  const pageObjs=[...new Set(GB.steps.filter(s=>s.pageId).map(s=>s.pageId))].map(id=>DB.pages.find(p=>p.id===id)).filter(Boolean);
+  const kind=GB.kind||'internal';
+  const valid=GB.steps.filter(s=>(s.op||'').trim()&&(kind==='internal'||s.product));
+  const pageObjs=[...new Set(valid.filter(s=>s.pageId).map(s=>s.pageId))].map(id=>DB.pages.find(p=>p.id===id)).filter(Boolean);
   const pageNames=pageObjs.map(p=>{const n=p.id.replace('PAGE-','');return n.charAt(0)+n.slice(1).toLowerCase();});
-  const product=GB.product||(pageObjs[0]&&pageObjs[0].product)||(CURRENT_PRODUCT==='all'?(productNames()[0]||'Back Office'):CURRENT_PRODUCT);
-  const steps=GB.steps.map(s=>{const pg=s.pageId&&DB.pages.find(p=>p.id===s.pageId);const tgt=pg&&pg.map&&pg.map[0]?pg.map[0][0]:(pg?pg.id:'—');return {a:s.op||'(operation)',t:tgt,v:undefined,instr:s.instr||'',files:(s.files||[]).slice()};});
-  // Prefer stated intent for the title; fall back to first step / pages.
+  let product, modules;
+  if(kind==='internal'){ product=GB.product||(pageObjs[0]&&pageObjs[0].product)||(productNames()[0]||'Back Office'); modules=GB.modules.slice(); }
+  else { product='Cross-product'; modules=[...new Set(valid.map(s=>s.module).filter(Boolean))]; }
+  const steps=valid.map(s=>{const pg=s.pageId&&DB.pages.find(p=>p.id===s.pageId);const tgt=pg&&pg.map&&pg.map[0]?pg.map[0][0]:(pg?pg.id:'—');const out={a:s.op||'(operation)',t:tgt,v:undefined,instr:s.instr||'',files:(s.files||[]).slice(),pageId:s.pageId||null}; if(kind==='cross-product'){out.product=s.product||''; out.module=s.module||'';} return out;});
   const intent=(GB.intent||'').trim();
-  const title = intent ? (intent.length>90?intent.slice(0,87)+'…':intent) : ((GB.steps[0]&&GB.steps[0].op)?GB.steps[0].op:('Guided flow: '+(pageNames.join(' → ')||'multi-page')));
-  return {id:'GEN-'+String(DB.cases.length+1).padStart(3,'0'),product,pages:pageNames,page:pageNames[0]||'—',title,intent,steps};
+  const title=intent?(intent.length>90?intent.slice(0,87)+'…':intent):((GB.steps[0]&&GB.steps[0].op)?GB.steps[0].op:('Guided flow: '+(pageNames.join(' → ')||'multi-page')));
+  return {id:'GEN-'+String(DB.cases.length+1).padStart(3,'0'),kind,product,modules,pages:pageNames,page:pageNames[0]||'—',title,intent,steps};
 }
 function gbSubmit(){
   gbSync();
@@ -1830,20 +1874,29 @@ ${c.steps.map(s=>`  <span class="c">// ${esc(s.a)}${s.instr?` — ${esc(s.instr)
     <div class="note" style="margin-top:10px"><span>⚖</span><div>Human-in-the-loop: on accept the Case &amp; script are created, linked, and the case is marked automated. <b>FR-AI-006/008</b></div></div>`);
 }
 function gbResTab(i){ [0,1].forEach(n=>{const e=$("#gbRes"+n);if(e)e.style.display=(+i===n)?'block':'none';}); [...document.querySelectorAll('#gbResTabs button')].forEach((b,n)=>b.classList.toggle('active',n===+i)); }
-function gbReset(){ GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}]}; GBRES=null; renderAIBody(); }
+function gbReset(){ GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}],intent:'',product:'',kind:'internal',modules:[]}; GBRES=null; renderAIBody(); }
 function gbAccept(){
   const c=GBRES; if(!c)return;
   const scriptId='SCRIPT-'+c.id;
-  DB.cases.unshift({id:c.id,title:c.title,product:c.product,module:'AI-generated',feature:'Guided',page:c.page,pages:c.pages,
+  const safeProd=(c.product==='Cross-product')?'crossproduct':c.product.toLowerCase().replace(/\s+/g,'');
+  DB.cases.unshift({
+    id:c.id,title:c.title,kind:c.kind||'internal',
+    product:c.product,
+    modules:(c.modules&&c.modules.length)?c.modules:['AI-generated'],
+    module:(c.modules&&c.modules[0])||'AI-generated',
+    feature:'Guided',page:c.page,pages:c.pages,
     priority:'Medium',type:'Positive',status:'automated',script:scriptId,
-    pre:['Generated from guided builder'],steps:c.steps.map(s=>({a:s.a,t:s.t})),expected:['Flow completes as described'],
-    coverage:{requirements:[],pages:c.pages.map(p=>'PAGE-'+p.toUpperCase()),features:[]},lastRun:null});
+    pre:['Generated from guided builder'],
+    steps:c.steps.map(s=>{const out={a:s.a,t:s.t,instr:s.instr||undefined,page:s.pageId||undefined};if(c.kind==='cross-product'){out.product=s.product||undefined;out.module=s.module||undefined;}return out;}),
+    expected:['Flow completes as described'],
+    coverage:{requirements:[],pages:c.pages.map(p=>'PAGE-'+p.toUpperCase()),features:[]},lastRun:null
+  });
   if(!DB.scripts.some(s=>s.id===scriptId))
-    DB.scripts.unshift({id:scriptId,path:'products/'+c.product.toLowerCase().replace(/\s+/g,'')+'/tests/guided/'+c.id.toLowerCase()+'.spec.ts',fw:'Playwright',status:'passing',branch:'feat/'+c.id.toLowerCase(),golden:false,cases:[c.id],pr:'open',hash:'sha:'+Math.random().toString(16).slice(2,8)});
+    DB.scripts.unshift({id:scriptId,path:'products/'+safeProd+'/tests/guided/'+c.id.toLowerCase()+'.spec.ts',fw:'Playwright',status:'passing',branch:'feat/'+c.id.toLowerCase(),golden:false,cases:[c.id],pr:'open',hash:'sha:'+Math.random().toString(16).slice(2,8)});
   persist();
   toast('Created '+c.id+' + script from guided steps','success');
   setHTML($("#gbOutput"),`<div class="empty"><div style="font-size:36px;color:#52c41a">✓</div><div class="strong" style="margin-top:8px">${c.id} created &amp; linked</div><div class="muted" style="margin:6px 0 14px">Case + script saved and marked automated.</div><button class="btn" data-act="nav" data-a="cases">Open Case Library</button> <button class="btn" data-act="gbReset">Build another</button></div>`);
-  GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}]}; GBRES=null;
+  GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}],intent:'',product:'',kind:'internal',modules:[]}; GBRES=null;
 }
 
 /* ============================================================
@@ -2484,6 +2537,7 @@ const ACTIONS={
   aiMode:ds=>{aiMode=ds.a;renderAIBody();[...document.querySelectorAll('#aiModeTabs button')].forEach(b=>b.classList.toggle('active',b.dataset.a===ds.a));},
   gbAddStep:()=>gbAddStep(),
   gbDelStep:ds=>gbDelStep(ds.a),
+  gbKind:ds=>gbKind(ds.a),
   gbPick:ds=>gbPick(ds.a,ds.b),
   gbClear:ds=>gbClear(ds.a),
   gbAttachFile:ds=>gbAttachFile(ds.a),
@@ -2530,6 +2584,9 @@ document.addEventListener('change',e=>{
   else if(e.target.id==='ncProduct'){ ncSyncTop(); nc.product=e.target.value; nc.modules=[]; const l=$("#ncModulesList"); if(l)setHTML(l,ncModulesCheckboxesHTML(nc.product)); nc.steps.forEach(s=>s.pageId=null); renderNcSteps(); }
   else if(e.target.dataset&&e.target.dataset.ncstepprod!==undefined){ ncSyncSteps(); const i=+e.target.dataset.ncstepprod; if(nc&&nc.steps[i]){nc.steps[i].product=e.target.value; nc.steps[i].module=''; nc.steps[i].pageId=null;} renderNcSteps(); }
   else if(e.target.dataset&&e.target.dataset.ncstepmod!==undefined){ const i=+e.target.dataset.ncstepmod; if(nc&&nc.steps[i])nc.steps[i].module=e.target.value; }
+  else if(e.target.id==='gbProduct'){ gbSync(); GB.product=e.target.value; GB.modules=[]; const l=$("#gbModulesList"); if(l)setHTML(l, gbModulesCheckboxesHTML(GB.product)); GB.steps.forEach(s=>s.pageId=null); renderGB(); }
+  else if(e.target.dataset&&e.target.dataset.gbstepprod!==undefined){ gbSync(); const i=+e.target.dataset.gbstepprod; if(GB.steps[i]){GB.steps[i].product=e.target.value; GB.steps[i].module=''; GB.steps[i].pageId=null;} renderGB(); }
+  else if(e.target.dataset&&e.target.dataset.gbstepmod!==undefined){ const i=+e.target.dataset.gbstepmod; if(GB.steps[i])GB.steps[i].module=e.target.value; }
   else if(e.target.id==='prdSuite'){const ni=$("#prdSuiteNew"); if(ni)ni.style.display=e.target.value==='__new__'?'block':'none';}
   else if(e.target.id==='histEnv'){histEnv=e.target.value;renderHistTable();}
   else if(e.target.id==='planSched'){const o=$("#schedOpts");if(o)o.style.display=e.target.checked?'block':'none';}
