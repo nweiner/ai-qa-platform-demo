@@ -455,7 +455,7 @@ let CURRENT_PRODUCT="Back Office";
 
 /* ---- persistence: runs/plans/pages survive reloads (localStorage) ---- */
 function nowStamp(){const d=new Date();const p=n=>String(n).padStart(2,'0');return `2026-05-25 ${p(d.getHours())}:${p(d.getMinutes())}`;}
-const PKEYS={aiqa_runs:'runs',aiqa_plans:'plans',aiqa_pages:'pages',aiqa_cases:'cases',aiqa_scripts:'scripts'};
+const PKEYS={aiqa_runs:'runs',aiqa_plans:'plans',aiqa_pages:'pages',aiqa_cases:'cases',aiqa_scripts:'scripts',aiqa_products:'products',aiqa_updates:'updates'};
 function persist(){ try{ for(const k in PKEYS)localStorage.setItem(k,JSON.stringify(DB[PKEYS[k]])); }catch(e){} }
 function loadPersisted(){
   try{ for(const k in PKEYS){const s=localStorage.getItem(k); if(s){const a=JSON.parse(s); if(Array.isArray(a)&&a.length)DB[PKEYS[k]]=a;}} }catch(e){}
@@ -469,10 +469,38 @@ function resetDemo(){ try{Object.keys(PKEYS).forEach(k=>localStorage.removeItem(
 function pageByNameOrId(x){ if(!x)return null; const up=String(x).toUpperCase().replace(/\s+/g,'-');
   return DB.pages.find(p=>p.id===x||p.id==='PAGE-'+up||p.route===x) || DB.pages.find(p=>p.id.replace('PAGE-','')===up) || null; }
 function casePages(c){ return (c.pages&&c.pages.length)?c.pages:(c.page?[c.page]:[]); }
-function normCases(){ DB.cases.forEach(c=>{ if(!c.pages){
-  const cov=((c.coverage&&c.coverage.pages)||[]).map(pid=>pid.replace('PAGE-','')).map(s=>s?s.charAt(0)+s.slice(1).toLowerCase():s);
-  c.pages=[...new Set([c.page,...cov].filter(Boolean))];
-}}); }
+function normCases(){
+  // products (seed defaults if empty)
+  if(!DB.products||!DB.products.length)DB.products=[
+    {id:'PROD-1',name:'Back Office',description:'Admin console for store configuration, user management, and reporting.'},
+    {id:'PROD-2',name:'Online Order',description:'Web ordering for guests; menu browsing, cart, checkout.'},
+    {id:'PROD-3',name:'POS',description:'In-store point-of-sale terminal.'},
+    {id:'PROD-4',name:'KDS',description:'Kitchen display system for order routing & timing.'},
+    {id:'PROD-5',name:'Kiosk',description:'Self-service ordering kiosk.'}
+  ];
+  if(!DB.updates)DB.updates=[];
+  // page variants (a page may have multiple ARIA snapshots & locator maps)
+  DB.pages.forEach(p=>{ if(!p.variants||!p.variants.length) p.variants=[{name:'default',aria:p.aria.slice(),map:p.map.map(m=>m.slice())}]; });
+  // demo: seed Login with a second variant so the tabs are visible
+  const login=DB.pages.find(p=>p.id==='PAGE-LOGIN');
+  if(login&&login.variants.length===1&&login.variants[0].name==='default'){
+    login.variants.push({name:'account locked',
+      aria:['heading: Sign In','alert: Account locked — try again in 15 minutes','textbox: Email','textbox: Password','link: Forgot password?'],
+      map:[['Login.lockedAlert',"getByText('Account locked')"],['Login.emailInput',"page.getByTestId('login-email')"],['Login.forgotLink',"page.getByRole('link', { name: 'Forgot password?' })"]]});
+  }
+  // cases: derive multi-page list
+  DB.cases.forEach(c=>{ if(!c.pages){
+    const cov=((c.coverage&&c.coverage.pages)||[]).map(pid=>pid.replace('PAGE-','')).map(s=>s?s.charAt(0)+s.slice(1).toLowerCase():s);
+    c.pages=[...new Set([c.page,...cov].filter(Boolean))];
+  }});
+}
+function productNames(){ return (DB.products||[]).map(p=>p.name); }
+function buildProductSel(){
+  const sel=$("#productSel"); if(!sel)return;
+  const names=productNames();
+  if(!names.includes(CURRENT_PRODUCT)&&CURRENT_PRODUCT!=='all')CURRENT_PRODUCT=names[0]||'all';
+  setHTML(sel,`<option value="all">All products</option>`+names.map(n=>`<option value="${esc(n)}" ${CURRENT_PRODUCT===n?'selected':''}>${esc(n)}</option>`).join(''));
+}
 function pageDiagram(page,mini){
   if(!page)return `<div class="wf ${mini?'mini':''}"><div class="wf-bar"><span class="wf-dot"></span><span class="wf-url">unknown</span></div><div class="wf-body"><div class="wf-el muted">No registered profile yet</div></div></div>`;
   const blocks=(page.aria||[]).map(a=>{
@@ -537,9 +565,11 @@ const NAV=[
   {group:"AI & Execution"},
   {id:"ai",label:"AI Generation",ic:"✦"},
   {id:"runs",label:"Execution Center",ic:"▶"},
-  {id:"coverage",label:"Coverage",ic:"◎"}
+  {id:"coverage",label:"Coverage",ic:"◎"},
+  {group:"Settings"},
+  {id:"settings",label:"Product Settings",ic:"⚙"}
 ];
-const TITLES={dashboard:"Dashboard",cases:"Case Library",pages:"Page Registry",scripts:"Script Library",ai:"AI Generation Workspace",runs:"Execution Center",coverage:"Coverage Dashboard"};
+const TITLES={dashboard:"Dashboard",cases:"Case Library",pages:"Page Registry",scripts:"Script Library",ai:"AI Generation Workspace",runs:"Execution Center",coverage:"Coverage Dashboard",settings:"Product Settings"};
 
 function renderNav(active){
   setHTML($("#nav"),NAV.map(n=>{
@@ -552,7 +582,7 @@ function route(){
   renderNav(page);
   setHTML($("#crumb"),`AI QA Platform <span style="margin:0 6px;color:#d9d9d9">/</span> <b>${esc(TITLES[page]||"Dashboard")}</b>`);
   closeOverlays();
-  ({dashboard:viewDashboard,cases:viewCases,pages:viewPages,scripts:viewScripts,ai:viewAI,runs:viewRuns,coverage:viewCoverage}[page]||viewDashboard)();
+  ({dashboard:viewDashboard,cases:viewCases,pages:viewPages,scripts:viewScripts,ai:viewAI,runs:viewRuns,coverage:viewCoverage,settings:viewSettings}[page]||viewDashboard)();
 }
 window.addEventListener("hashchange",route);
 
@@ -720,7 +750,7 @@ function openCase(id){
     <div class="section-title" style="font-size:14px;margin-top:18px">Page preview <span class="muted" style="font-weight:400">— simplified diagram from the ARIA snapshot</span></div>
     <div class="row" style="gap:12px">${casePages(c).map(pn=>{const pg=pageByNameOrId(pn);return `<div style="flex:1;min-width:200px;max-width:300px"><div class="muted" style="font-size:11px;margin-bottom:5px">${esc(pn)}${pg?'':' · not registered'}</div>${pageDiagram(pg)}</div>`;}).join('')||'<div class="muted">No pages linked.</div>'}</div>
     <div class="section-title" style="font-size:14px;margin-top:18px">Steps</div>
-    <ol class="steps">${c.steps.map((s,i)=>`<li><span class="n">${i+1}</span><div class="act">${esc(s.a)} ${s.v?`<span class="muted">→ "${esc(s.v)}"</span>`:''}<div class="tgt">${esc(s.t)}</div></div></li>`).join("")}</ol>
+    <ol class="steps">${c.steps.map((s,i)=>{const pg=s.page&&DB.pages.find(p=>p.id===s.page);return `<li><span class="n">${i+1}</span><div class="act"><div>${esc(s.a)} ${s.v?`<span class="muted">→ "${esc(s.v)}"</span>`:''}</div><div class="tgt">${pg?pg.id+' · ':''}${esc(s.t||'')}</div>${s.instr?`<div class="muted" style="font-size:12px;margin-top:4px"><b>Notes:</b> ${esc(s.instr)}</div>`:''}${s.exp?`<div style="font-size:12px;margin-top:4px;color:#389e0d"><b>↳ Expected:</b> ${esc(s.exp)}</div>`:''}</div></li>`;}).join("")}</ol>
     <div class="section-title" style="font-size:14px;margin-top:18px">Expected result</div>
     <ul style="margin:0 0 4px 18px;color:rgba(0,0,0,.65)">${c.expected.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>
     <div class="divider"></div>
@@ -764,8 +794,8 @@ function openDedupe(){
 const PFX={'Back Office':'BO','Online Order':'OO','POS':'POS','KDS':'KDS','Kiosk':'KSK'};
 let newCaseSteps=[];
 function openNewCase(){
-  newCaseSteps=[{a:'',t:'',v:''}];
-  const prod=CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT;
+  newCaseSteps=[{q:'',pageId:null,op:'',instr:'',exp:''}];
+  const prod=CURRENT_PRODUCT==='all'?(productNames()[0]||'Back Office'):CURRENT_PRODUCT;
   const suggested=(PFX[prod]||'BO')+'-CASE-'+String(DB.cases.length+1).padStart(3,'0');
   openModalWide('New test case',`
     <div class="row" style="gap:12px">
@@ -773,38 +803,53 @@ function openNewCase(){
       <div class="field" style="flex:2;margin-bottom:12px"><label>Title</label><input id="ncTitle" placeholder="e.g. Valid user can log in successfully"></div>
     </div>
     <div class="row" style="gap:12px">
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="ncProduct" style="width:100%">${['Back Office','Online Order','POS','KDS','Kiosk'].map(x=>`<option ${prod===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="ncProduct" style="width:100%">${productNames().map(x=>`<option ${prod===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div></div>
       <div class="field" style="flex:1;margin-bottom:12px"><label>Module</label><input id="ncModule" placeholder="e.g. Authentication"></div>
       <div class="field" style="flex:1;margin-bottom:12px"><label>Feature</label><input id="ncFeature" placeholder="e.g. Login"></div>
     </div>
     <div class="row" style="gap:12px">
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Pages <span class="muted">(comma-separated)</span></label><input id="ncPage" placeholder="e.g. Login, Dashboard"></div>
       <div class="field" style="flex:1;margin-bottom:12px"><label>Priority</label><div class="select-wrap" style="width:100%"><select id="ncPriority" style="width:100%"><option>High</option><option selected>Medium</option><option>Low</option></select></div></div>
       <div class="field" style="flex:1;margin-bottom:12px"><label>Type</label><div class="select-wrap" style="width:100%"><select id="ncType" style="width:100%"><option>Positive</option><option>Negative</option></select></div></div>
     </div>
     <div class="field"><label>Preconditions <span class="muted">(one per line)</span></label><textarea id="ncPre" placeholder="The user account exists&#10;The user is active"></textarea></div>
-    <div class="section-title" style="font-size:14px">Steps</div>
+    <div class="section-title" style="font-size:14px">Steps <span class="muted" style="font-weight:400">— each step targets a page (pick from thumbnails) with operation, instructions &amp; expected result</span></div>
     <div id="ncSteps"></div>
     <button class="btn btn-sm" data-act="ncAddStep" style="margin-bottom:14px">+ Add step</button>
-    <div class="field"><label>Expected result <span class="muted">(one per line)</span></label><textarea id="ncExpected" placeholder="The user is redirected to Dashboard"></textarea></div>
-    <div class="note"><span>ⓘ</span><div>Saved as a <b>manual</b> case. Open its detail and use <b>✦ Generate script</b> to automate it. <b>FR-CASE-003</b></div></div>
+    <div class="note"><span>ⓘ</span><div>Saved as a <b>manual</b> case. Pages are derived from the page selected on each step. Open its detail and use <b>✦ Generate script</b> to automate it. <b>FR-CASE-003</b></div></div>
   `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveCase">Save case</button>`);
   renderNcSteps();
 }
+function ncThumbsHTML(i){
+  const s=newCaseSteps[i];
+  const m=(s.q?DB.pages.filter(p=>(p.id+' '+p.route+' '+(p.product||'')).toLowerCase().includes(s.q.toLowerCase())):DB.pages).slice(0,6);
+  return m.length?m.map(p=>`<div class="thumb ${s.pageId===p.id?'sel':''}" data-act="ncPick" data-a="${i}" data-b="${p.id}">${pageDiagram(p,true)}<div class="tlabel"><input type="checkbox" ${s.pageId===p.id?'checked':''} tabindex="-1"><span class="cell-id">${p.id}</span></div></div>`).join(''):'<div class="muted">No matching saved pages — register/crawl pages first.</div>';
+}
 function renderNcSteps(){
   const host=$("#ncSteps"); if(!host)return;
-  setHTML(host, newCaseSteps.map((s,i)=>`
-    <div class="row" style="gap:8px;margin-bottom:8px;align-items:center">
-      <span class="muted" style="width:16px;flex-shrink:0">${i+1}</span>
-      <input class="sinp" data-ncstep="${i}" data-f="a" value="${esc(s.a)}" placeholder="Action (e.g. Enter email)" style="flex:2">
-      <input class="sinp" data-ncstep="${i}" data-f="t" value="${esc(s.t)}" placeholder="Target (e.g. Login.emailInput)" style="flex:2">
-      <input class="sinp" data-ncstep="${i}" data-f="v" value="${esc(s.v)}" placeholder="Value (optional)" style="flex:1.3">
-      <button class="x" data-act="ncDelStep" data-a="${i}" title="Remove step">✕</button>
-    </div>`).join(''));
+  setHTML(host, newCaseSteps.map((s,i)=>{
+    const conf=s.pageId?DB.pages.find(p=>p.id===s.pageId):null;
+    return `<div class="gb-step">
+      <div class="gb-step-head"><div style="display:flex;align-items:center;gap:8px"><span class="gb-badge">${i+1}</span><span class="strong">Step ${i+1}</span></div>${newCaseSteps.length>1?`<button class="x" data-act="ncDelStep" data-a="${i}" title="Remove step">✕</button>`:''}</div>
+      <div class="field" style="margin-bottom:8px"><label>Page</label><input class="sinp" style="width:100%" data-ncq="${i}" value="${esc(s.q)}" placeholder="Type a page name or route, e.g. login / users"></div>
+      ${conf
+        ? `<div class="note" style="margin-bottom:8px"><span>✓</span><div>Page: <b>${conf.id}</b> <span class="muted">(${conf.route})</span> · <a data-act="ncClear" data-a="${i}" style="cursor:pointer;color:#1677ff">change</a></div></div>`
+        : `<div class="muted" style="font-size:12px;margin-bottom:6px">Matching pages — check one to confirm:</div><div class="thumbgrid" id="ncThumbs${i}" style="margin-bottom:8px">${ncThumbsHTML(i)}</div>`}
+      <div class="field" style="margin-bottom:8px"><label>Operation</label><input class="sinp" style="width:100%" data-ncop="${i}" value="${esc(s.op)}" placeholder="e.g. Enter email & password, click Sign In"></div>
+      <div class="field" style="margin-bottom:8px"><label>Instructions / notes for AI</label><textarea data-ncinstr="${i}" placeholder="e.g. Use a valid active account; expect a fast redirect">${esc(s.instr)}</textarea></div>
+      <div class="field" style="margin-bottom:0"><label>Expected result</label><textarea data-ncexp="${i}" placeholder="e.g. Dashboard is shown; KPIs render">${esc(s.exp)}</textarea></div>
+    </div>`;
+  }).join(''));
 }
-function ncSyncSteps(){ document.querySelectorAll('[data-ncstep]').forEach(inp=>{const i=+inp.dataset.ncstep,f=inp.dataset.f; if(newCaseSteps[i])newCaseSteps[i][f]=inp.value;}); }
-function ncAddStep(){ ncSyncSteps(); newCaseSteps.push({a:'',t:'',v:''}); renderNcSteps(); }
-function ncDelStep(i){ ncSyncSteps(); newCaseSteps.splice(+i,1); if(!newCaseSteps.length)newCaseSteps.push({a:'',t:'',v:''}); renderNcSteps(); }
+function ncSyncSteps(){
+  document.querySelectorAll('[data-ncq]').forEach(el=>{const i=+el.dataset.ncq; if(newCaseSteps[i])newCaseSteps[i].q=el.value;});
+  document.querySelectorAll('[data-ncop]').forEach(el=>{const i=+el.dataset.ncop; if(newCaseSteps[i])newCaseSteps[i].op=el.value;});
+  document.querySelectorAll('[data-ncinstr]').forEach(el=>{const i=+el.dataset.ncinstr; if(newCaseSteps[i])newCaseSteps[i].instr=el.value;});
+  document.querySelectorAll('[data-ncexp]').forEach(el=>{const i=+el.dataset.ncexp; if(newCaseSteps[i])newCaseSteps[i].exp=el.value;});
+}
+function ncAddStep(){ ncSyncSteps(); newCaseSteps.push({q:'',pageId:null,op:'',instr:'',exp:''}); renderNcSteps(); }
+function ncDelStep(i){ ncSyncSteps(); newCaseSteps.splice(+i,1); if(!newCaseSteps.length)newCaseSteps.push({q:'',pageId:null,op:'',instr:'',exp:''}); renderNcSteps(); }
+function ncPick(i,pid){ ncSyncSteps(); newCaseSteps[+i].pageId=pid; renderNcSteps(); }
+function ncClear(i){ ncSyncSteps(); newCaseSteps[+i].pageId=null; renderNcSteps(); }
 function saveCase(){
   const g=id=>{const e=$(id);return e?e.value.trim():'';};
   const id=g('#ncId')||('NEW-'+(DB.cases.length+1));
@@ -812,11 +857,17 @@ function saveCase(){
   const title=g('#ncTitle'); if(!title){toast('Title is required','error');return;}
   ncSyncSteps();
   const lines=v=>(v||'').split('\n').map(x=>x.trim()).filter(Boolean);
-  const pages=g('#ncPage').split(',').map(x=>x.trim()).filter(Boolean);
-  const c={id,title,product:g('#ncProduct'),module:g('#ncModule')||'—',feature:g('#ncFeature')||'—',page:pages[0]||'—',pages:pages.length?pages:['—'],
+  const pageObjs=[...new Set(newCaseSteps.filter(s=>s.pageId).map(s=>s.pageId))].map(pid=>DB.pages.find(p=>p.id===pid)).filter(Boolean);
+  const pageNames=pageObjs.map(p=>{const n=p.id.replace('PAGE-','');return n.charAt(0)+n.slice(1).toLowerCase();});
+  const validSteps=newCaseSteps.filter(s=>(s.op||'').trim());
+  if(!validSteps.length){toast('Add at least one step with an operation','error');return;}
+  const c={id,title,product:g('#ncProduct'),module:g('#ncModule')||'—',feature:g('#ncFeature')||'—',
+    page:pageNames[0]||'—',pages:pageNames.length?pageNames:['—'],
     priority:g('#ncPriority'),type:g('#ncType'),status:'manual',script:null,
-    pre:lines($('#ncPre').value), steps:newCaseSteps.filter(s=>s.a).map(s=>({a:s.a,t:s.t||'—',v:s.v||undefined})),
-    expected:lines($('#ncExpected').value), coverage:{requirements:[],pages:[],features:[]}, lastRun:null};
+    pre:lines($('#ncPre').value),
+    steps:validSteps.map(s=>{const pg=s.pageId&&DB.pages.find(p=>p.id===s.pageId);const tgt=pg&&pg.map&&pg.map[0]?pg.map[0][0]:(pg?pg.id:'—');return {a:s.op,t:tgt,instr:s.instr||undefined,exp:s.exp||undefined,page:s.pageId||undefined};}),
+    expected:[...new Set(validSteps.map(s=>(s.exp||'').trim()).filter(Boolean))],
+    coverage:{requirements:[],pages:pageObjs.map(p=>p.id),features:[]}, lastRun:null};
   DB.cases.unshift(c); persist(); closeOverlays(); toast('Case '+id+' created','success');
   if((location.hash.slice(1)||'')==='cases')viewCases();
 }
@@ -918,13 +969,13 @@ function gsAccept(){
 /* ============================================================
    VIEW: PAGE REGISTRY
    ============================================================ */
+let pageSearch='';
 function viewPages(){
-  const pages=filteredPages();
   const ups=(DB.updates||[]).filter(u=>CURRENT_PRODUCT==='all'||u.product===CURRENT_PRODUCT);
   render(`
   <div class="page-head">
     <div><div class="page-title">Page Registry</div>
-    <div class="page-sub">Low-token page profiles: ARIA snapshots + Locator Maps + Page Object paths replace full HTML/screenshots as AI input. <b>FR-PAGE-001…008</b></div></div>
+    <div class="page-sub">Search-first registry — with many pages, results appear only after you search. <b>FR-PAGE-001…008</b></div></div>
     <div class="btn-row">
       <button class="btn" data-act="openCapture">+ Register page</button>
       <button class="btn" data-act="crawlFull">⛓ Crawl full site</button>
@@ -932,20 +983,48 @@ function viewPages(){
     </div>
   </div>
   ${ups.length?`<div class="card card-pad" style="margin-bottom:16px"><div class="section-title" style="font-size:14px">Recorded software updates <span class="muted" style="font-weight:400">— pages re-profiled per release</span></div>${ups.map(u=>`<div class="between" style="padding:7px 0;border-bottom:1px solid var(--border)"><div><span class="tag tag-purple">⟳ ${esc(u.label)}</span> <span class="muted" style="font-size:12px">${esc(u.system||u.product)} · ${u.date}</span></div><div class="muted" style="font-size:12px">${u.pages.length} pages: ${u.pages.map(esc).join(', ')}</div></div>`).join('')}</div>`:''}
-  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
-    ${pages.map(p=>`
-      <div class="card card-pad" style="cursor:pointer" data-act="openPage" data-a="${p.id}">
-        <div class="between" style="margin-bottom:8px"><span class="cell-id">${p.id}</span>${p.drift?tag('drift','tag-orange'):tag('stable','tag-green')}</div>
-        ${pageDiagram(p,true)}
-        <div class="between" style="margin-top:8px"><span class="mono muted" style="font-size:12px">${p.route}</span>${p.update?`<span class="tag tag-purple" style="font-size:10px">⟳ ${esc(p.update)}</span>`:''}</div>
-        <div class="row" style="gap:14px;font-size:12px;color:rgba(0,0,0,.45);margin-top:6px">
-          <span>◫ ${p.aria.length}</span><span>⌖ ${p.map.length} locators</span>
-        </div>
-      </div>`).join("")}
-  </div>`);
+  <div class="toolbar">
+    <div class="search" style="max-width:560px;flex:1"><span class="si">⌕</span><input id="pageSearchInput" placeholder="Search by id, route, product, update, ARIA contents, or locator name…" value="${esc(pageSearch)}"></div>
+    <button class="btn btn-sm" id="pageClearBtn" data-act="clearPageSearch" style="display:${pageSearch?'inline-flex':'none'}">✕ Clear</button>
+    <div class="topbar-spacer"></div>
+    <span class="muted" id="pageCount"></span>
+  </div>
+  <div id="pageGrid"></div>`);
+  renderPageGrid();
 }
+function renderPageGrid(){
+  const host=$("#pageGrid"); if(!host)return;
+  const q=(pageSearch||'').trim().toLowerCase();
+  const cnt=$("#pageCount");
+  if(!q){ if(cnt)cnt.textContent=DB.pages.length+' total · type to search';
+    setHTML(host,`<div class="card card-pad" style="text-align:center;padding:56px 24px"><div style="font-size:42px;color:var(--text-3)">⌕</div><div class="strong" style="margin-top:10px">Start typing to search the Page Registry</div><div class="muted" style="margin-top:6px;font-size:13px">${DB.pages.length} page profile${DB.pages.length===1?'':'s'} available. Search matches id, route, product, update label, ARIA contents, and locator names.</div></div>`); return; }
+  let pages=filteredPages();
+  pages=pages.filter(p=>{
+    const hay=(p.id+' '+p.route+' '+(p.product||'')+' '+(p.update||'')+' '+((p.aria||[]).join(' '))+' '+((p.map||[]).map(m=>m[0]).join(' '))).toLowerCase();
+    return hay.includes(q);
+  });
+  if(cnt)cnt.textContent=`${pages.length} match${pages.length===1?'':'es'} of ${DB.pages.length}`;
+  if(!pages.length){ setHTML(host,`<div class="card card-pad"><div class="empty">No pages match “${esc(pageSearch)}”.</div></div>`); return; }
+  setHTML(host,`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${pages.map(p=>{const vc=(p.variants&&p.variants.length)||1;return `
+    <div class="card card-pad" style="cursor:pointer" data-act="openPage" data-a="${p.id}">
+      <div class="between" style="margin-bottom:8px"><span class="cell-id">${p.id}</span>${p.drift?tag('drift','tag-orange'):tag('stable','tag-green')}</div>
+      ${pageDiagram(p,true)}
+      <div class="between" style="margin-top:8px"><span class="mono muted" style="font-size:12px">${p.route}</span>${p.update?`<span class="tag tag-purple" style="font-size:10px">⟳ ${esc(p.update)}</span>`:''}</div>
+      <div class="row" style="gap:14px;font-size:12px;color:rgba(0,0,0,.45);margin-top:6px">
+        <span>◫ ${vc>1?vc+' variants':p.aria.length+' aria'}</span><span>⌖ ${p.map.length} locators</span>
+      </div>
+    </div>`;}).join('')}</div>`);
+}
+function clearPageSearch(){ pageSearch=''; viewPages(); }
+let pageDrawerVariants=null, pageDrawerCurId=null;
 function openPage(id){
-  const p=DB.pages.find(x=>x.id===id);
+  const p=DB.pages.find(x=>x.id===id); if(!p)return;
+  pageDrawerCurId=id;
+  const vars=(p.variants&&p.variants.length)?p.variants:[{name:'default',aria:p.aria,map:p.map}];
+  pageDrawerVariants=vars;
+  const tabsHTML = vars.length>1
+    ? `<div class="tabs" id="pvTabs" style="margin-top:18px">${vars.map((v,i)=>`<button class="${i===0?'active':''}" data-act="pvTab" data-a="${i}">${esc(v.name)}</button>`).join('')}<div style="margin-left:auto;align-self:center"><button class="btn btn-sm" data-act="addVariant" data-a="${p.id}">+ Variant</button></div></div><div id="pvBody">${renderVariantHTML(vars[0])}</div>`
+    : `${renderVariantHTML(vars[0])}<div style="margin-top:14px"><button class="btn btn-sm" data-act="addVariant" data-a="${p.id}">+ Add ARIA snapshot variant <span class="muted">(e.g. logged-in / error / modal-open)</span></button></div>`;
   const body=`
     <div class="between" style="margin-bottom:12px">
       <div><div class="cell-id">${p.id}</div><div class="mono" style="font-size:15px;margin-top:3px">${p.route}</div></div>
@@ -955,14 +1034,74 @@ function openPage(id){
       <dt>Product</dt><dd>${esc(p.product)}</dd>
       <dt>Page Object</dt><dd class="mono" style="font-size:12px">${esc(p.po)}</dd>
       <dt>DOM hash</dt><dd class="mono">${p.hash}</dd>
+      ${p.update?`<dt>Update</dt><dd><span class="tag tag-purple">⟳ ${esc(p.update)}</span></dd>`:''}
+      ${vars.length>1?`<dt>Variants</dt><dd>${vars.length} <span class="muted">(one page · multiple ARIA snapshots &amp; locator maps)</span></dd>`:''}
     </dl>
-    ${p.drift?`<div class="note warn" style="margin-top:14px"><span>⚠</span><div>DOM hash changed since last capture — dependent scripts flagged at-risk. Re-capture recommended. <b>FR-PAGE-005</b></div></div>`:''}
-    <div class="section-title" style="font-size:14px;margin-top:18px">ARIA snapshot <span class="token-pill">(~${p.aria.length*6} tokens vs ~3.2k for full HTML)</span></div>
-    <pre class="code">${p.aria.map(a=>`<span class="t">- </span>${esc(a)}`).join("\n")}</pre>
-    <div class="section-title" style="font-size:14px;margin-top:18px">Locator Map</div>
-    <pre class="code">${p.map.map(([k,v])=>`<span class="f">${esc(k.padEnd(22))}</span><span class="c">→</span> ${esc(v)}`).join("\n")}</pre>`;
+    ${p.drift?`<div class="note warn" style="margin-top:14px"><span>⚠</span><div>DOM hash changed since last capture — dependent scripts flagged at-risk. <b>FR-PAGE-005</b></div></div>`:''}
+    ${tabsHTML}`;
   openDrawer("Page profile",body,
-    `<button class="btn" data-act="recapture" data-a="${p.id}">↻ Re-capture</button><button class="btn btn-primary" data-act="closeNav" data-a="scripts">View Page Object</button>`);
+    `<button class="btn btn-danger" data-act="deletePage" data-a="${p.id}">Delete</button><button class="btn" data-act="recapture" data-a="${p.id}">↻ Re-capture</button><button class="btn btn-primary" data-act="viewPO" data-a="${p.id}">{ } Page Object</button>`);
+}
+function renderVariantHTML(v){
+  return `<div class="section-title" style="font-size:14px;margin-top:18px">ARIA snapshot <span class="token-pill">(~${v.aria.length*6} tokens vs ~3.2k for full HTML)</span></div>
+    <pre class="code">${v.aria.map(a=>`<span class="t">- </span>${esc(a)}`).join("\n")}</pre>
+    <div class="section-title" style="font-size:14px;margin-top:18px">Locator Map</div>
+    <pre class="code">${v.map.map(([k,vv])=>`<span class="f">${esc(k.padEnd(22))}</span><span class="c">→</span> ${esc(vv)}`).join("\n")}</pre>`;
+}
+function pvTab(i){ const idx=+i, b=$("#pvBody"); if(b&&pageDrawerVariants&&pageDrawerVariants[idx])setHTML(b,renderVariantHTML(pageDrawerVariants[idx])); [...document.querySelectorAll('#pvTabs button')].forEach((btn,n)=>btn.classList.toggle('active',n===idx)); }
+function addVariant(id){
+  openModal('Add ARIA snapshot variant',`
+    <div class="note"><span>ⓘ</span><div>A page can have multiple states (logged-out / logged-in / modal open / error). Each variant has its own ARIA snapshot &amp; Locator Map. Locators are derived from the snapshot you paste.</div></div>
+    <div class="field" style="margin-top:14px"><label>Variant name</label><input id="vvName" placeholder="e.g. logged-in, error, modal-open"></div>
+    <div class="field"><label>ARIA snapshot <span class="muted">(one line per element, format <code>role: label</code>)</span></label><textarea id="vvAria" style="min-height:140px" placeholder="heading: Welcome&#10;button: Sign out&#10;table: Recent activity"></textarea></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveVariant" data-a="${id}">Save variant</button>`);
+}
+function saveVariant(id){
+  const name=$("#vvName").value.trim()||'variant';
+  const lines=$("#vvAria").value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!lines.length){toast('Add at least one ARIA line','error');return;}
+  const map=lines.map(line=>{
+    const i=line.indexOf(':'); const role=(i>=0?line.slice(0,i):line).trim().toLowerCase(); const label=(i>=0?line.slice(i+1):line).trim();
+    const k=(label.split(/\s+/)[0]||'el').replace(/[^A-Za-z0-9]/g,'')+(role==='button'?'Btn':role==='link'?'Link':role==='textbox'?'Input':role==='alert'?'Alert':'');
+    let loc;
+    if(role==='button')loc=`getByRole('button', { name: '${label}' })`;
+    else if(role==='link')loc=`getByRole('link', { name: '${label}' })`;
+    else if(role==='textbox'||role==='combobox')loc=`getByLabel('${label}')`;
+    else loc=`getByText('${label}')`;
+    return [k,loc];
+  });
+  const p=DB.pages.find(x=>x.id===id); if(!p)return;
+  if(!p.variants||!p.variants.length)p.variants=[{name:'default',aria:p.aria.slice(),map:p.map.map(m=>m.slice())}];
+  p.variants.push({name,aria:lines,map});
+  persist(); closeOverlays(); toast('Variant “'+name+'” added','success'); openPage(id);
+}
+function deletePage(id){
+  openModal('Delete page profile?',`<div class="note warn"><span>⚠</span><div>Delete <b>${id}</b> and all its variants? Cases linking this page will lose their preview. This cannot be undone.</div></div>`,
+    `<button class="btn" data-act="close">Cancel</button><button class="btn btn-danger" data-act="deletePageConfirm" data-a="${id}">Delete page</button>`);
+}
+function deletePageConfirm(id){
+  DB.pages=DB.pages.filter(p=>p.id!==id);
+  // also drop the id from any update sets
+  (DB.updates||[]).forEach(u=>{u.pages=(u.pages||[]).filter(x=>x!==id);});
+  persist(); closeOverlays(); toast(id+' deleted','success');
+  if((location.hash.slice(1)||'')==='pages')viewPages();
+}
+function viewPO(id){
+  const p=DB.pages.find(x=>x.id===id); if(!p)return;
+  const cls=p.id.replace('PAGE-','').split('-').map(s=>s.charAt(0)+s.slice(1).toLowerCase()).join('')+'Page';
+  const props=(p.map||[]).map(([k,v])=>`  <span class="f">${esc(k.split('.').pop())}</span> = this.page.${esc(v)};`).join('\n');
+  const code=`<span class="k">import</span> { Page } <span class="k">from</span> <span class="s">'@playwright/test'</span>;
+
+<span class="k">export class</span> <span class="f">${cls}</span> {
+  <span class="k">constructor</span>(<span class="k">private</span> page: Page) {}
+${props}
+  <span class="k">async</span> open() { <span class="k">await</span> this.page.goto(<span class="s">'${p.route}'</span>); }
+}`;
+  openModalWide('Page Object · '+p.id,`
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Page Objects are managed within the Page Registry. Scripts in the Script Library reference this class. Source synthesized from the default-variant Locator Map.</div>
+    <div class="codebar"><span>${esc(p.po)}</span><span>TypeScript</span></div>
+    <pre class="code">${code}</pre>
+  `,`<button class="btn" data-act="close">Close</button>`);
 }
 
 /* ============================================================
@@ -1171,7 +1310,7 @@ function crawlStep1(){
       ${crawlStepper()}
       <div class="note"><span>⛓</span><div>From the entry page the crawler discovers all reachable pages and generates an ARIA snapshot, Locator Map &amp; Page Object for each — in one pass. <b>FR-PAGE-007</b></div></div>
       <div class="row" style="gap:12px;margin-top:14px">
-        <div class="field" style="flex:1"><label>Product</label><div class="select-wrap" style="width:100%"><select id="crProduct" style="width:100%">${Object.keys(CRAWL_CANDIDATES).map(x=>`<option ${CRAWL.product===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+        <div class="field" style="flex:1"><label>Product</label><div class="select-wrap" style="width:100%"><select id="crProduct" style="width:100%">${productNames().map(x=>`<option ${CRAWL.product===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div></div>
         <div class="field" style="flex:1"><label>Entry route</label><input id="crEntry" value="${esc(CRAWL.entry)}"></div>
         <div class="field" style="width:120px"><label>Max depth</label><input id="crDepth" type="number" value="3" min="1" max="6"></div>
       </div>
@@ -1182,7 +1321,7 @@ function crawlStep1(){
       ${crawlStepper()}
       <div class="note purple"><span>⟳</span><div>Record the pages affected by a software update and crawl <b>only those</b> — re-profiling just what changed, not the whole site. <b>FR-PAGE-008</b></div></div>
       <div class="row" style="gap:12px;margin-top:14px">
-        <div class="field" style="flex:1"><label>System / product</label><div class="select-wrap" style="width:100%"><select id="crProduct" style="width:100%">${Object.keys(CRAWL_CANDIDATES).map(x=>`<option ${CRAWL.product===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+        <div class="field" style="flex:1"><label>System / product</label><div class="select-wrap" style="width:100%"><select id="crProduct" style="width:100%">${productNames().map(x=>`<option ${CRAWL.product===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div></div>
         <div class="field" style="flex:1"><label>Update label / ticket</label><input id="crLabel" value="${esc(CRAWL.label)}" placeholder="e.g. Release 2026.6 / JIRA-1234"></div>
       </div>
       <div class="field"><label>Affected routes <span class="muted">(one per line — only these are crawled)</span></label><textarea id="crAffected" style="min-height:92px">${esc(CRAWL.affected)}</textarea></div>
@@ -1328,7 +1467,7 @@ let aiContext=[
   {k:"Full page HTML",t:3200,on:false,why:"Excluded — high cost, low value"},
   {k:"Full-page screenshot",t:1100,on:false,why:"Excluded — semantics suffice"}
 ];
-let aiMode='quick';
+let aiMode='guided';
 function viewAI(){
   render(`
   <div class="page-head">
@@ -1336,8 +1475,8 @@ function viewAI(){
     <div class="page-sub">Turn intent — or a guided, page-by-page walkthrough — into a structured case &amp; Playwright script. Reuse-first, token-aware, human-accepted. <b>FR-AI-001…010</b></div></div>
   </div>
   <div class="tabs" id="aiModeTabs">
-    <button class="${aiMode==='quick'?'active':''}" data-act="aiMode" data-a="quick">⚡ Quick generate</button>
     <button class="${aiMode==='guided'?'active':''}" data-act="aiMode" data-a="guided">🧭 Guided builder</button>
+    <button class="${aiMode==='quick'?'active':''}" data-act="aiMode" data-a="quick">⚡ Quick generate</button>
   </div>
   <div id="aiBody"></div>`);
   renderAIBody();
@@ -1445,10 +1584,18 @@ function aiTab(i){[0,1].forEach(n=>{const e=$("#aiTab"+n);if(e)e.style.display=n
 function acceptAI(){closeOverlays();toast('Accepted · branch feat/bo-login-001 created · PR opened','success');}
 
 /* ---- Guided builder (#5): step-by-step → AI Case + script ---- */
-let GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}]}, GBRES=null;
+let GB={steps:[{q:'',pageId:null,op:'',instr:'',files:[]}],intent:'',product:''}, GBRES=null;
 function aiGuidedHTML(){
+  if(!GB.product) GB.product = (CURRENT_PRODUCT!=='all'&&productNames().includes(CURRENT_PRODUCT))?CURRENT_PRODUCT:(productNames()[0]||'');
   return `<div class="row" style="align-items:flex-start">
     <div class="stack" style="flex:1.2;min-width:340px">
+      <div class="card card-pad">
+        <div class="section-title">Test intent &amp; product</div>
+        <div class="row" style="gap:12px">
+          <div class="field" style="flex:1;margin-bottom:0"><label>Product</label><div class="select-wrap" style="width:100%"><select id="gbProduct" style="width:100%">${productNames().map(n=>`<option ${GB.product===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div></div>
+        </div>
+        <div class="field" style="margin-top:12px;margin-bottom:0"><label>Test intent</label><textarea id="gbIntent" placeholder="What outcome are you testing? e.g. Verify a valid user can log in and reach the Dashboard.">${esc(GB.intent)}</textarea></div>
+      </div>
       <div class="card card-pad">
         <div class="section-title">Build the test, step by step</div>
         <div class="page-sub" style="margin:0 0 12px">For each step: find the page and confirm it from its thumbnail, describe the operation + instructions, and attach files/pages. AI assembles everything into a Case &amp; script. <b>FR-AI-010</b></div>
@@ -1484,7 +1631,11 @@ function renderGB(){
     </div>`;
   }).join(''));
 }
-function gbSync(){ document.querySelectorAll('[data-gb]').forEach(el=>{const i=+el.dataset.i,f=el.dataset.gb; if(GB.steps[i])GB.steps[i][f]=el.value;}); }
+function gbSync(){
+  const i=$("#gbIntent"); if(i)GB.intent=i.value;
+  const pp=$("#gbProduct"); if(pp)GB.product=pp.value;
+  document.querySelectorAll('[data-gb]').forEach(el=>{const i=+el.dataset.i,f=el.dataset.gb; if(GB.steps[i])GB.steps[i][f]=el.value;});
+}
 function gbAddStep(){ gbSync(); GB.steps.push({q:'',pageId:null,op:'',instr:'',files:[]}); renderGB(); }
 function gbDelStep(i){ gbSync(); GB.steps.splice(+i,1); if(!GB.steps.length)GB.steps.push({q:'',pageId:null,op:'',instr:'',files:[]}); renderGB(); }
 function gbPick(i,pid){ gbSync(); GB.steps[+i].pageId=pid; renderGB(); }
@@ -1495,10 +1646,12 @@ function gbDelFile(i,fi){ gbSync(); GB.steps[+i].files.splice(+fi,1); renderGB()
 function gbBuildCase(){
   const pageObjs=[...new Set(GB.steps.filter(s=>s.pageId).map(s=>s.pageId))].map(id=>DB.pages.find(p=>p.id===id)).filter(Boolean);
   const pageNames=pageObjs.map(p=>{const n=p.id.replace('PAGE-','');return n.charAt(0)+n.slice(1).toLowerCase();});
-  const product=(pageObjs[0]&&pageObjs[0].product)||(CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT);
+  const product=GB.product||(pageObjs[0]&&pageObjs[0].product)||(CURRENT_PRODUCT==='all'?(productNames()[0]||'Back Office'):CURRENT_PRODUCT);
   const steps=GB.steps.map(s=>{const pg=s.pageId&&DB.pages.find(p=>p.id===s.pageId);const tgt=pg&&pg.map&&pg.map[0]?pg.map[0][0]:(pg?pg.id:'—');return {a:s.op||'(operation)',t:tgt,v:undefined,instr:s.instr||'',files:(s.files||[]).slice()};});
-  return {id:'GEN-'+String(DB.cases.length+1).padStart(3,'0'),product,pages:pageNames,page:pageNames[0]||'—',
-    title:(GB.steps[0]&&GB.steps[0].op)?GB.steps[0].op:('Guided flow: '+(pageNames.join(' → ')||'multi-page')),steps};
+  // Prefer stated intent for the title; fall back to first step / pages.
+  const intent=(GB.intent||'').trim();
+  const title = intent ? (intent.length>90?intent.slice(0,87)+'…':intent) : ((GB.steps[0]&&GB.steps[0].op)?GB.steps[0].op:('Guided flow: '+(pageNames.join(' → ')||'multi-page')));
+  return {id:'GEN-'+String(DB.cases.length+1).padStart(3,'0'),product,pages:pageNames,page:pageNames[0]||'—',title,intent,steps};
 }
 function gbSubmit(){
   gbSync();
@@ -1940,6 +2093,58 @@ function recommendGap(i){
 }
 
 /* ============================================================
+   VIEW: SETTINGS · PRODUCT SETTINGS
+   ============================================================ */
+function viewSettings(){
+  render(`
+  <div class="page-head">
+    <div><div class="page-title">Product Settings</div>
+    <div class="page-sub">Manage the product catalog. Products defined here appear in Case Library, Page Registry, AI Generation, and the topbar product filter. <b>FR-ADM-002</b></div></div>
+    <button class="btn btn-primary" data-act="openNewProduct">+ New product</button>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+    ${DB.products.map(p=>{
+      const nCases=DB.cases.filter(c=>c.product===p.name).length, nPages=DB.pages.filter(x=>x.product===p.name).length, nPlans=DB.plans.filter(x=>x.product===p.name).length;
+      return `<div class="card card-pad">
+        <div class="between"><span class="cell-id">${p.id}</span><span class="muted" style="font-size:12px">${nCases} cases · ${nPages} pages · ${nPlans} plans</span></div>
+        <div class="strong" style="font-size:16px;margin:8px 0 4px">${esc(p.name)}</div>
+        <div class="muted" style="font-size:13px">${esc(p.description||'—')}</div>
+        <div class="divider"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" data-act="editProduct" data-a="${p.id}">Edit</button>
+          <button class="btn btn-sm btn-danger" data-act="deleteProduct" data-a="${p.id}">Delete</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`);
+}
+function openNewProduct(){ productModal(null); }
+function editProduct(id){ productModal(DB.products.find(p=>p.id===id)); }
+function productModal(p){
+  openModal((p?'Edit':'New')+' product',`
+    <div class="field"><label>Product name</label><input id="prdName" value="${p?esc(p.name):''}" placeholder="e.g. Self-Service Kiosk"></div>
+    <div class="field"><label>Description</label><textarea id="prdDesc" placeholder="What this product is, who uses it, why it exists…">${p?esc(p.description||''):''}</textarea></div>
+  `,`<button class="btn" data-act="close">Cancel</button><button class="btn btn-primary" data-act="saveProduct" ${p?`data-a="${p.id}"`:''}>${p?'Save changes':'Create product'}</button>`);
+}
+function saveProduct(id){
+  const name=$("#prdName").value.trim(); if(!name){toast('Name is required','error');return;}
+  if(DB.products.some(p=>p.name.toLowerCase()===name.toLowerCase() && p.id!==id)){toast('A product with this name already exists','error');return;}
+  const desc=$("#prdDesc").value.trim();
+  if(id){const p=DB.products.find(x=>x.id===id); if(p){p.name=name; p.description=desc;}}
+  else{ DB.products.push({id:'PROD-'+(DB.products.length+1),name,description:desc}); }
+  persist(); buildProductSel(); closeOverlays(); toast('Product '+(id?'updated':'created'),'success'); viewSettings();
+}
+function deleteProduct(id){
+  const p=DB.products.find(x=>x.id===id); if(!p)return;
+  const used=DB.cases.some(c=>c.product===p.name)||DB.pages.some(x=>x.product===p.name)||DB.plans.some(x=>x.product===p.name);
+  openModal('Delete product?',`<div class="note warn"><span>⚠</span><div>Delete <b>${esc(p.name)}</b>?${used?' Existing cases/pages/plans referencing it keep their stored name, but it will no longer appear in dropdowns.':' No assets reference it.'}</div></div>`,
+    `<button class="btn" data-act="close">Cancel</button><button class="btn btn-danger" data-act="deleteProductConfirm" data-a="${id}">Delete</button>`);
+}
+function deleteProductConfirm(id){
+  DB.products=DB.products.filter(p=>p.id!==id); persist(); buildProductSel(); closeOverlays(); toast('Product deleted','success'); viewSettings();
+}
+
+/* ============================================================
    EVENT DELEGATION  (no inline handlers -> sanitizer-safe)
    ============================================================ */
 const ACTIONS={
@@ -1976,6 +2181,20 @@ const ACTIONS={
   gsAccept:()=>gsAccept(),
   openCapture:()=>openCapture(),
   recapture:ds=>recapture(ds.a),
+  clearPageSearch:()=>clearPageSearch(),
+  pvTab:ds=>pvTab(ds.a),
+  addVariant:ds=>addVariant(ds.a),
+  saveVariant:ds=>saveVariant(ds.a),
+  deletePage:ds=>deletePage(ds.a),
+  deletePageConfirm:ds=>deletePageConfirm(ds.a),
+  viewPO:ds=>viewPO(ds.a),
+  openNewProduct:()=>openNewProduct(),
+  editProduct:ds=>editProduct(ds.a),
+  deleteProduct:ds=>deleteProduct(ds.a),
+  saveProduct:ds=>saveProduct(ds.a),
+  deleteProductConfirm:ds=>deleteProductConfirm(ds.a),
+  ncPick:ds=>ncPick(ds.a,ds.b),
+  ncClear:ds=>ncClear(ds.a),
   crawlFull:()=>crawlFull(),
   crawlUpdate:()=>crawlUpdate(),
   crawlStart:()=>crawlStart(),
@@ -2019,7 +2238,9 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{
   if(e.target.id==='caseSearchInput'){caseSearch=e.target.value;renderCaseTable();}
   else if(e.target.id==='histSearch'){histSearch=e.target.value;renderHistTable();}
+  else if(e.target.id==='pageSearchInput'){pageSearch=e.target.value;renderPageGrid();const b=$("#pageClearBtn");if(b)b.style.display=pageSearch?'inline-flex':'none';}
   else if(e.target.dataset&&e.target.dataset.gb==='q'){const i=+e.target.dataset.i;if(GB.steps[i]){GB.steps[i].q=e.target.value;const c=$("#gbThumbs"+i);if(c)setHTML(c,gbThumbsHTML(i));}}
+  else if(e.target.dataset&&e.target.dataset.ncq!==undefined){const i=+e.target.dataset.ncq;if(newCaseSteps[i]){newCaseSteps[i].q=e.target.value;const c=$("#ncThumbs"+i);if(c)setHTML(c,ncThumbsHTML(i));}}
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='productSel'){CURRENT_PRODUCT=e.target.value;route();}
@@ -2035,6 +2256,7 @@ document.addEventListener('change',e=>{
    ============================================================ */
 loadPersisted();
 normCases();
+buildProductSel();
 if(!location.hash)location.hash="dashboard";
 route();
 </script>
