@@ -313,11 +313,6 @@
       <div class="select-wrap">
         <select id="productSel">
           <option value="all">All products</option>
-          <option value="Back Office" selected>Back Office</option>
-          <option value="Online Order">Online Order</option>
-          <option value="POS">POS</option>
-          <option value="KDS">KDS</option>
-          <option value="Kiosk">Kiosk</option>
         </select>
       </div>
       <span class="env-pill"><span class="env-dot"></span> staging</span>
@@ -341,57 +336,57 @@
 const DB = {
   kpis:{cases:248, automatedPct:61, passRate:94.2, coverage:73},
   cases:[
-    {id:"BO-LOGIN-001",title:"Valid user can log in successfully",product:"Back Office",module:"Authentication",feature:"Login",page:"Login",priority:"High",type:"Positive",status:"automated",script:"SCRIPT-BO-LOGIN-001",
+    {id:"BO-LOGIN-001",title:"Valid user can log in successfully",product:"Admin Cloud",module:"Authentication",feature:"Login",page:"Login",priority:"High",type:"Positive",status:"automated",script:"SCRIPT-BO-LOGIN-001",
       pre:["The user account exists","The user account is active","The user is not already logged in"],
       steps:[{a:"Open Login page",t:"Login page"},{a:"Enter email",t:"Login.emailInput",v:"qa_user@example.com"},{a:"Enter password",t:"Login.passwordInput",v:"CorrectPassword123"},{a:"Click Sign In",t:"Login.signInButton"}],
       expected:["The user is redirected to Dashboard page","The Dashboard page is displayed"],
       coverage:{requirements:["REQ-AUTH-LOGIN-001"],pages:["PAGE-LOGIN","PAGE-DASHBOARD"],features:["FEATURE-LOGIN"]},lastRun:"pass"},
-    {id:"BO-LOGIN-002",title:"Login fails with invalid password",product:"Back Office",module:"Authentication",feature:"Login",page:"Login",priority:"High",type:"Negative",status:"automated",script:"SCRIPT-BO-LOGIN-002",
+    {id:"BO-LOGIN-002",title:"Login fails with invalid password",product:"Admin Cloud",module:"Authentication",feature:"Login",page:"Login",priority:"High",type:"Negative",status:"automated",script:"SCRIPT-BO-LOGIN-002",
       pre:["The user account exists"],
       steps:[{a:"Open Login page",t:"Login page"},{a:"Enter email",t:"Login.emailInput",v:"qa_user@example.com"},{a:"Enter wrong password",t:"Login.passwordInput",v:"WrongPass!"},{a:"Click Sign In",t:"Login.signInButton"}],
       expected:["An error message 'Invalid credentials' is shown","User stays on the Login page"],
       coverage:{requirements:["REQ-AUTH-LOGIN-002"],pages:["PAGE-LOGIN"],features:["FEATURE-LOGIN"]},lastRun:"pass"},
-    {id:"BO-LOGIN-003",title:"Account locks after 5 failed attempts",product:"Back Office",module:"Authentication",feature:"Login",page:"Login",priority:"Medium",type:"Negative",status:"candidate",script:null,
+    {id:"BO-LOGIN-003",title:"Account locks after 5 failed attempts",product:"Admin Cloud",module:"Authentication",feature:"Login",page:"Login",priority:"Medium",type:"Negative",status:"candidate",script:null,
       pre:["The user account exists","No prior failed attempts in window"],
       steps:[{a:"Open Login page",t:"Login page"},{a:"Submit wrong password 5 times",t:"Login.signInButton"},{a:"Attempt 6th login",t:"Login.signInButton"}],
       expected:["Account is locked","'Account locked' message is shown"],
       coverage:{requirements:["REQ-AUTH-LOGIN-003"],pages:["PAGE-LOGIN"],features:["FEATURE-LOGIN"]},lastRun:"fail"},
-    {id:"BO-USER-001",title:"Admin can create a new user",product:"Back Office",module:"User Management",feature:"User CRUD",page:"Users",priority:"High",type:"Positive",status:"automated",script:"SCRIPT-BO-USER-001",
+    {id:"BO-USER-001",title:"Admin can create a new user",product:"Admin Cloud",module:"User Management",feature:"User CRUD",page:"Users",priority:"High",type:"Positive",status:"automated",script:"SCRIPT-BO-USER-001",
       pre:["Logged in as Admin"],
       steps:[{a:"Open Users page",t:"Users page"},{a:"Click Add User",t:"Users.addBtn"},{a:"Fill user form",t:"Users.form"},{a:"Save",t:"Users.saveBtn"}],
       expected:["New user appears in the list","Success toast is shown"],
       coverage:{requirements:["REQ-USER-CRUD-001"],pages:["PAGE-USERS"],features:["FEATURE-USER-MGMT"]},lastRun:"pass"},
-    {id:"BO-USER-002",title:"Non-admin cannot access User Management",product:"Back Office",module:"User Management",feature:"Permissions",page:"Users",priority:"High",type:"Negative",status:"manual",script:null,
+    {id:"BO-USER-002",title:"Non-admin cannot access User Management",product:"Admin Cloud",module:"User Management",feature:"Permissions",page:"Users",priority:"High",type:"Negative",status:"manual",script:null,
       pre:["Logged in as non-admin role"],
       steps:[{a:"Navigate to /users",t:"Users page"}],
       expected:["Access is denied","User is redirected or sees 403"],
       coverage:{requirements:["REQ-USER-PERM-001"],pages:["PAGE-USERS"],features:["FEATURE-USER-MGMT"]},lastRun:null},
-    {id:"BO-SET-001",title:"Update store timezone setting",product:"Back Office",module:"Settings",feature:"Store Settings",page:"Settings",priority:"Low",type:"Positive",status:"candidate",script:null,
+    {id:"BO-SET-001",title:"Update store timezone setting",product:"Admin Cloud",module:"Settings",feature:"Store Settings",page:"Settings",priority:"Low",type:"Positive",status:"candidate",script:null,
       pre:["Logged in as Admin"],steps:[{a:"Open Settings",t:"Settings page"},{a:"Change timezone",t:"Settings.timezone"},{a:"Save",t:"Settings.saveBtn"}],
       expected:["Timezone is saved","Confirmation shown"],coverage:{requirements:["REQ-SET-001"],pages:["PAGE-SETTINGS"],features:["FEATURE-SETTINGS"]},lastRun:null},
-    {id:"BO-MENU-001",title:"Add a menu item with price",product:"Back Office",module:"Menu Management",feature:"Menu CRUD",page:"Menu",priority:"Medium",type:"Positive",status:"manual",script:null,
+    {id:"BO-MENU-001",title:"Add a menu item with price",product:"Admin Cloud",module:"Menu Management",feature:"Menu CRUD",page:"Menu",priority:"Medium",type:"Positive",status:"manual",script:null,
       pre:["Logged in as Admin"],steps:[{a:"Open Menu",t:"Menu page"},{a:"Add item",t:"Menu.addBtn"},{a:"Enter name + price",t:"Menu.form"},{a:"Save",t:"Menu.saveBtn"}],
       expected:["Item appears with correct price"],coverage:{requirements:["REQ-MENU-001"],pages:["PAGE-MENU"],features:["FEATURE-MENU"]},lastRun:null},
-    {id:"OO-ORDER-001",title:"Guest can place a basic order",product:"Online Order",module:"Ordering",feature:"Checkout",page:"Order",priority:"High",type:"Positive",status:"candidate",script:null,
+    {id:"OO-ORDER-001",title:"Guest can place a basic order",product:"Masa App",module:"Ordering",feature:"Checkout",page:"Order",priority:"High",type:"Positive",status:"candidate",script:null,
       pre:["Store is open","Menu has items"],steps:[{a:"Open Order page",t:"Order page"},{a:"Add item to cart",t:"Order.addItem"},{a:"Checkout",t:"Order.checkoutBtn"},{a:"Confirm",t:"Order.confirmBtn"}],
       expected:["Order is created","Order confirmation number shown"],coverage:{requirements:["REQ-ORDER-001"],pages:["PAGE-ORDER"],features:["FEATURE-ORDER"]},lastRun:null}
   ],
   pages:[
-    {id:"PAGE-LOGIN",route:"/login",product:"Back Office",po:"products/backoffice/pages/LoginPage.ts",hash:"a91f…3c",drift:false,
+    {id:"PAGE-LOGIN",route:"/login",product:"Admin Cloud",po:"products/backoffice/pages/LoginPage.ts",hash:"a91f…3c",drift:false,
       aria:["heading: Sign In","textbox: Email","textbox: Password","button: Sign In","link: Forgot password?"],
       map:[["Login.emailInput","page.getByTestId('login-email')"],["Login.passwordInput","page.getByTestId('login-password')"],["Login.signInButton","page.getByRole('button', { name: 'Sign In' })"],["Login.forgotLink","page.getByRole('link', { name: 'Forgot password?' })"]]},
-    {id:"PAGE-DASHBOARD",route:"/dashboard",product:"Back Office",po:"products/backoffice/pages/DashboardPage.ts",hash:"77be…01",drift:false,
+    {id:"PAGE-DASHBOARD",route:"/dashboard",product:"Admin Cloud",po:"products/backoffice/pages/DashboardPage.ts",hash:"77be…01",drift:false,
       aria:["heading: Dashboard","navigation: Main","button: New Report","table: KPIs"],
       map:[["Dashboard.heading","page.getByRole('heading', { name: 'Dashboard' })"],["Dashboard.newReport","page.getByRole('button', { name: 'New Report' })"]]},
-    {id:"PAGE-USERS",route:"/users",product:"Back Office",po:"products/backoffice/pages/UserManagementPage.ts",hash:"12cd…9a",drift:true,
+    {id:"PAGE-USERS",route:"/users",product:"Admin Cloud",po:"products/backoffice/pages/UserManagementPage.ts",hash:"12cd…9a",drift:true,
       aria:["heading: User Management","button: Add User","textbox: Search users","table: Users","button: Save"],
       map:[["Users.addBtn","page.getByRole('button', { name: 'Add User' })"],["Users.search","page.getByPlaceholder('Search users')"],["Users.saveBtn","page.getByRole('button', { name: 'Save' })"]]},
-    {id:"PAGE-SETTINGS",route:"/settings",product:"Back Office",po:"products/backoffice/pages/SettingsPage.ts",hash:"5fa0…7d",drift:false,
+    {id:"PAGE-SETTINGS",route:"/settings",product:"Admin Cloud",po:"products/backoffice/pages/SettingsPage.ts",hash:"5fa0…7d",drift:false,
       aria:["heading: Settings","combobox: Timezone","button: Save"],
       map:[["Settings.timezone","page.getByLabel('Timezone')"],["Settings.saveBtn","page.getByRole('button', { name: 'Save' })"]]},
-    {id:"PAGE-MENU",route:"/menu",product:"Back Office",po:"products/backoffice/pages/MenuPage.ts",hash:"e23b…44",drift:false,
+    {id:"PAGE-MENU",route:"/menu",product:"Admin Cloud",po:"products/backoffice/pages/MenuPage.ts",hash:"e23b…44",drift:false,
       aria:["heading: Menu","button: Add Item","table: Menu Items"],map:[["Menu.addBtn","page.getByRole('button', { name: 'Add Item' })"]]},
-    {id:"PAGE-ORDER",route:"/order",product:"Online Order",po:"products/onlineorder/pages/OrderPage.ts",hash:"bb91…2e",drift:false,
+    {id:"PAGE-ORDER",route:"/order",product:"Masa App",po:"products/onlineorder/pages/OrderPage.ts",hash:"bb91…2e",drift:false,
       aria:["heading: Order","button: Add to cart","button: Checkout","button: Confirm"],map:[["Order.addItem","page.getByRole('button', { name: 'Add to cart' })"],["Order.checkoutBtn","page.getByRole('button', { name: 'Checkout' })"]]}
   ],
   scripts:[
@@ -417,9 +412,9 @@ const DB = {
     {id:"RUN-2039",env:"staging",status:"failed",total:7,pass:5,fail:1,skip:1,started:"2026-05-20 16:45",dur:"3m 40s",by:"QA Engineer",planId:"PLAN-001",results:[]}
   ],
   plans:[
-    {id:"PLAN-001",name:"Back Office — Smoke",desc:"Critical auth + user paths, runs every deploy",product:"Back Office",caseIds:["BO-LOGIN-001","BO-LOGIN-002","BO-LOGIN-003","BO-USER-001"],env:"staging",worker:"Docker pool (4 workers)",parallelism:4,retries:1,schedule:{enabled:true,freq:"Daily 02:00",next:"2026-05-23 02:00"},last:{status:"failed",at:"2026-05-22 09:14",runId:"RUN-2042"}},
-    {id:"PLAN-002",name:"Back Office — Full Regression",desc:"All Back Office automated cases",product:"Back Office",caseIds:["BO-LOGIN-001","BO-LOGIN-002","BO-USER-001"],env:"qa",worker:"CI pipeline",parallelism:6,retries:2,schedule:{enabled:true,freq:"Weekly · Mon 01:00",next:"2026-05-25 01:00"},last:{status:"passed",at:"2026-05-21 18:02",runId:"RUN-2041"}},
-    {id:"PLAN-003",name:"Online Order — Checkout",desc:"Guest checkout happy path",product:"Online Order",caseIds:["OO-ORDER-001"],env:"staging",worker:"Docker pool (2 workers)",parallelism:2,retries:1,schedule:{enabled:false,freq:null,next:null},last:{status:null,at:null,runId:null}}
+    {id:"PLAN-001",name:"Admin Cloud — Smoke",desc:"Critical auth + user paths, runs every deploy",product:"Admin Cloud",caseIds:["BO-LOGIN-001","BO-LOGIN-002","BO-LOGIN-003","BO-USER-001"],env:"staging",worker:"Docker pool (4 workers)",parallelism:4,retries:1,schedule:{enabled:true,freq:"Daily 02:00",next:"2026-05-23 02:00"},last:{status:"failed",at:"2026-05-22 09:14",runId:"RUN-2042"}},
+    {id:"PLAN-002",name:"Admin Cloud — Full Regression",desc:"All Admin Cloud automated cases",product:"Admin Cloud",caseIds:["BO-LOGIN-001","BO-LOGIN-002","BO-USER-001"],env:"qa",worker:"CI pipeline",parallelism:6,retries:2,schedule:{enabled:true,freq:"Weekly · Mon 01:00",next:"2026-05-25 01:00"},last:{status:"passed",at:"2026-05-21 18:02",runId:"RUN-2041"}},
+    {id:"PLAN-003",name:"Masa App — Checkout",desc:"Guest checkout happy path",product:"Masa App",caseIds:["OO-ORDER-001"],env:"staging",worker:"Docker pool (2 workers)",parallelism:2,retries:1,schedule:{enabled:false,freq:null,next:null},last:{status:null,at:null,runId:null}}
   ],
   coverage:{
     byDimension:[
@@ -451,7 +446,7 @@ const esc=(s)=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;
 /* All dynamic DOM writes go through DOMPurify (XSS-safe). */
 function setHTML(node,html){ node.innerHTML = (window.DOMPurify ? DOMPurify.sanitize(html) : html); }
 function render(html){ setHTML($("#content"),html); $("#content").scrollTop=0; }
-let CURRENT_PRODUCT="Back Office";
+let CURRENT_PRODUCT="Admin Cloud";
 
 /* ---- persistence: runs/plans/pages survive reloads (localStorage) ---- */
 function nowStamp(){const d=new Date();const p=n=>String(n).padStart(2,'0');return `2026-05-25 ${p(d.getHours())}:${p(d.getMinutes())}`;}
@@ -459,6 +454,14 @@ const PKEYS={aiqa_runs:'runs',aiqa_plans:'plans',aiqa_pages:'pages',aiqa_cases:'
 function persist(){ try{ for(const k in PKEYS)localStorage.setItem(k,JSON.stringify(DB[PKEYS[k]])); }catch(e){} }
 function loadPersisted(){
   try{ for(const k in PKEYS){const s=localStorage.getItem(k); if(s){const a=JSON.parse(s); if(Array.isArray(a)&&a.length)DB[PKEYS[k]]=a;}} }catch(e){}
+  // one-time catalog migration: if the saved catalog is older than the current seed shape, wipe
+  // only the catalog (suites/products/modules) and let normCases re-seed. Runs/plans/cases/pages/scripts persist.
+  const CATALOG_V='2';
+  let cv=null; try{cv=localStorage.getItem('aiqa_catalog_v');}catch(e){}
+  if(cv!==CATALOG_V){
+    DB.suites=[]; DB.products=[]; DB.modules=[];
+    try{ localStorage.removeItem('aiqa_suites'); localStorage.removeItem('aiqa_products'); localStorage.removeItem('aiqa_modules'); localStorage.setItem('aiqa_catalog_v',CATALOG_V); }catch(e){}
+  }
   // continue run numbering past the highest saved id to avoid collisions
   const mx=DB.runs.reduce((m,x)=>{const n=parseInt(String(x.id||'').replace('RUN-',''),10);return isNaN(n)?m:Math.max(m,n);},2042);
   runSeq=mx+1;
@@ -472,31 +475,35 @@ function casePages(c){ return (c.pages&&c.pages.length)?c.pages:(c.page?[c.page]
 function normCases(){
   // suites (top-level grouping) — seed defaults if empty
   if(!DB.suites||!DB.suites.length)DB.suites=[
-    {id:'SUITE-1',name:'Restaurant Operations Suite',description:'In-store products: Back Office, POS, KDS, and the self-service Kiosk.'},
-    {id:'SUITE-2',name:'Customer Order Suite',description:'Customer-facing online ordering.'}
+    {id:'SUITE-1',name:'Express POS Suite',description:'POS-related products and applications.'},
+    {id:'SUITE-2',name:'ePay Suite',description:'Payment-related products and management platforms.'},
+    {id:'SUITE-3',name:'Voice Order Suite',description:'Voice order administration and merchant-facing portals.'},
+    {id:'SUITE-4',name:'Connect Suite',description:'Customer service and communication platform.'},
+    {id:'SUITE-5',name:'Studio Suite',description:'Studio platform.'}
   ];
-  // products (seed defaults if empty) + backfill suiteId & language
+  // products (seed defaults if empty) — each carries its Suite + development language
   if(!DB.products||!DB.products.length)DB.products=[
-    {id:'PROD-1',name:'Back Office',description:'Admin console for store configuration, user management, and reporting.'},
-    {id:'PROD-2',name:'Online Order',description:'Web ordering for guests; menu browsing, cart, checkout.'},
-    {id:'PROD-3',name:'POS',description:'In-store point-of-sale terminal.'},
-    {id:'PROD-4',name:'KDS',description:'Kitchen display system for order routing & timing.'},
-    {id:'PROD-5',name:'Kiosk',description:'Self-service ordering kiosk.'}
+    {id:'PROD-1', name:'Admin Cloud',                     description:'Admin console for store configuration, user management, and reporting.', suiteId:'SUITE-1', language:'TypeScript'},
+    {id:'PROD-2', name:'Express Cloud',                   description:'Web-based POS management cloud.',                                          suiteId:'SUITE-1', language:'TypeScript'},
+    {id:'PROD-3', name:'Express iOS POS App',             description:'iOS point-of-sale application.',                                           suiteId:'SUITE-1', language:'Swift'},
+    {id:'PROD-4', name:'Express Android Tablet POS App',  description:'Android tablet point-of-sale application.',                                suiteId:'SUITE-1', language:'Kotlin'},
+    {id:'PROD-5', name:'Express Mobile POS App',          description:'Mobile (handheld) POS application.',                                       suiteId:'SUITE-1', language:'Swift'},
+    {id:'PROD-6', name:'KDS App',                         description:'Kitchen display system for order routing & timing.',                       suiteId:'SUITE-1', language:'Swift'},
+    {id:'PROD-7', name:'Kiosk App',                       description:'Self-service ordering kiosk.',                                             suiteId:'SUITE-1', language:'Swift'},
+    {id:'PROD-8', name:'Masa App',                        description:'Customer-facing online ordering app.',                                     suiteId:'SUITE-1', language:'TypeScript'},
+    {id:'PROD-9', name:'ePay App',                        description:'Payment terminal application.',                                            suiteId:'SUITE-2', language:'Java'},
+    {id:'PROD-10',name:'Central',                         description:'Payment central management system.',                                       suiteId:'SUITE-2', language:'Java'},
+    {id:'PROD-11',name:'TMS',                             description:'Terminal Management System.',                                              suiteId:'SUITE-2', language:'Java'},
+    {id:'PROD-12',name:'Control',                         description:'Payment admin and control portal.',                                        suiteId:'SUITE-2', language:'TypeScript'},
+    {id:'PROD-13',name:'Voice Order Admin Portal',        description:'Admin portal for voice ordering.',                                         suiteId:'SUITE-3', language:'TypeScript'},
+    {id:'PROD-14',name:'Voice Order Merchant Portal',     description:'Merchant-facing portal for voice ordering.',                               suiteId:'SUITE-3', language:'TypeScript'},
+    {id:'PROD-15',name:'Connect Admin Portal',            description:'Customer service & communications admin portal.',                          suiteId:'SUITE-4', language:'TypeScript'},
+    {id:'PROD-16',name:'Studio',                          description:'Aldelo Studio platform.',                                                  suiteId:'SUITE-5', language:'TypeScript'}
   ];
-  const PROD_DEFAULTS={
-    'Back Office':{suiteId:'SUITE-1',language:'TypeScript'},
-    'POS':{suiteId:'SUITE-1',language:'C#'},
-    'KDS':{suiteId:'SUITE-1',language:'TypeScript'},
-    'Kiosk':{suiteId:'SUITE-1',language:'Swift'},
-    'Online Order':{suiteId:'SUITE-2',language:'TypeScript'}
-  };
-  DB.products.forEach(p=>{const d=PROD_DEFAULTS[p.name]||{}; if(!p.suiteId)p.suiteId=d.suiteId||(DB.suites[0]&&DB.suites[0].id); if(!p.language)p.language=d.language||'TypeScript';});
-  // modules (seed from existing case module/product pairs if empty)
-  if(!DB.modules||!DB.modules.length){
-    const seen=new Set(), mods=[];
-    DB.cases.forEach(c=>{ if(!c.module||c.module==='—')return; const k=(c.product||'')+'::'+c.module; if(seen.has(k))return; seen.add(k); mods.push({id:'MOD-'+(mods.length+1),name:c.module,product:c.product,description:''}); });
-    DB.modules=mods;
-  }
+  // Backfill suiteId/language for any persisted products missing them.
+  DB.products.forEach(p=>{ if(!p.suiteId)p.suiteId=(DB.suites[0]&&DB.suites[0].id); if(!p.language)p.language='TypeScript'; });
+  // modules: empty by default (to be defined later)
+  if(!DB.modules)DB.modules=[];
   if(!DB.updates)DB.updates=[];
   // page variants (a page may have multiple ARIA snapshots & locator maps)
   DB.pages.forEach(p=>{ if(!p.variants||!p.variants.length) p.variants=[{name:'default',aria:p.aria.slice(),map:p.map.map(m=>m.slice())}]; });
@@ -836,13 +843,13 @@ function openDedupe(){
 }
 
 /* ---- Manual case entry ---- */
-const PFX={'Back Office':'BO','Online Order':'OO','POS':'POS','KDS':'KDS','Kiosk':'KSK'};
+const PFX={'Admin Cloud':'AC','Express Cloud':'EC','Express iOS POS App':'EIO','Express Android Tablet POS App':'EAT','Express Mobile POS App':'EM','KDS App':'KDS','Kiosk App':'KSK','Masa App':'MA','ePay App':'EP','Central':'CN','TMS':'TMS','Control':'CTL','Voice Order Admin Portal':'VOA','Voice Order Merchant Portal':'VOM','Connect Admin Portal':'CAP','Studio':'STD'};
 let nc=null;
 function openNewCase(){
-  const prod=CURRENT_PRODUCT==='all'?(productNames()[0]||'Back Office'):CURRENT_PRODUCT;
+  const prod=CURRENT_PRODUCT==='all'?(productNames()[0]||'Admin Cloud'):CURRENT_PRODUCT;
   nc={
     kind:'internal',
-    id:(PFX[prod]||'BO')+'-CASE-'+String(DB.cases.length+1).padStart(3,'0'),
+    id:(PFX[prod]||'CASE')+'-'+String(DB.cases.length+1).padStart(3,'0'),
     title:'', product:prod, modules:[], feature:'', priority:'Medium', type:'Positive', pre:'',
     steps:[{q:'',pageId:null,op:'',instr:'',exp:''}]
   };
@@ -1254,7 +1261,7 @@ function inferStrat(loc){
 }
 function openCapture(){
   CAPSTATE={step:1,mode:'new',src:null,captured:null,
-    data:{product:(CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT),name:'Reports',route:'/reports',env:'staging',login:true,method:'live'}};
+    data:{product:(CURRENT_PRODUCT==='all'?(productNames()[0]||'Admin Cloud'):CURRENT_PRODUCT),name:'Reports',route:'/reports',env:'staging',login:true,method:'live'}};
   renderCap();
 }
 function recapture(id){
@@ -1277,7 +1284,7 @@ function capStep1(){
   openModalWide(CAP_TITLE()+'Target',`
     ${capStepper()}
     <div class="row" style="gap:12px">
-      <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="capProduct" style="width:100%">${['Back Office','Online Order','POS','KDS','Kiosk'].map(x=>`<option ${d.product===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+      <div class="field" style="flex:1;margin-bottom:12px"><label>Product</label><div class="select-wrap" style="width:100%"><select id="capProduct" style="width:100%">${productNames().map(x=>`<option ${d.product===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div></div>
       <div class="field" style="flex:1;margin-bottom:12px"><label>Page name</label><input id="capName" value="${esc(d.name)}" placeholder="e.g. Reports"></div>
     </div>
     <div class="row" style="gap:12px">
@@ -1422,11 +1429,22 @@ function capSave(){
    CRAWL: full-site (#3) & update-scoped (#4)
    ============================================================ */
 const CRAWL_CANDIDATES={
-  'Back Office':[['Login','/login'],['Dashboard','/dashboard'],['Users','/users'],['Settings','/settings'],['Menu','/menu'],['Reports','/reports'],['Audit Log','/audit']],
-  'Online Order':[['Order','/order'],['Cart','/cart'],['Checkout','/checkout'],['Confirmation','/confirm']],
-  'POS':[['Sale','/sale'],['Payment','/payment'],['Refund','/refund']],
-  'KDS':[['Tickets','/tickets'],['History','/history']],
-  'Kiosk':[['Welcome','/welcome'],['Menu','/menu'],['Pay','/pay']]
+  'Admin Cloud':[['Login','/login'],['Dashboard','/dashboard'],['Users','/users'],['Settings','/settings'],['Menu','/menu'],['Reports','/reports'],['Audit Log','/audit']],
+  'Express Cloud':[['Login','/login'],['Dashboard','/dashboard'],['Orders','/orders'],['Reports','/reports']],
+  'Express iOS POS App':[['Login','/login'],['Sale','/sale'],['Payment','/payment'],['Refund','/refund']],
+  'Express Android Tablet POS App':[['Login','/login'],['Sale','/sale'],['Payment','/payment'],['Refund','/refund']],
+  'Express Mobile POS App':[['Login','/login'],['Order','/order'],['Pay','/pay']],
+  'KDS App':[['Tickets','/tickets'],['History','/history']],
+  'Kiosk App':[['Welcome','/welcome'],['Menu','/menu'],['Pay','/pay']],
+  'Masa App':[['Order','/order'],['Cart','/cart'],['Checkout','/checkout'],['Confirmation','/confirm']],
+  'ePay App':[['Sign In','/login'],['Payments','/payments'],['Refunds','/refunds']],
+  'Central':[['Dashboard','/dashboard'],['Merchants','/merchants'],['Transactions','/transactions']],
+  'TMS':[['Terminals','/terminals'],['Firmware','/firmware']],
+  'Control':[['Dashboard','/dashboard'],['Risk','/risk'],['Reports','/reports']],
+  'Voice Order Admin Portal':[['Dashboard','/dashboard'],['Tenants','/tenants'],['Voice Flows','/flows']],
+  'Voice Order Merchant Portal':[['Dashboard','/dashboard'],['Menu','/menu'],['Orders','/orders']],
+  'Connect Admin Portal':[['Dashboard','/dashboard'],['Tickets','/tickets'],['Agents','/agents']],
+  'Studio':[['Workspace','/'],['Templates','/templates'],['Settings','/settings']]
 };
 function synthProfile(name,route){
   const reg=DB.pages.find(p=>p.route===route);
@@ -1436,8 +1454,8 @@ function synthProfile(name,route){
     map:[[base+'.primary',"getByRole('button', { name: 'Primary action' })"],[base+'.table',"getByRole('table', { name: '"+name+" list' })"]]};
 }
 let CRAWL=null;
-function crawlFull(){ const prod=CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT; CRAWL={mode:'full',step:1,product:prod,entry:(CRAWL_CANDIDATES[prod]||[['Home','/']])[0][1],label:'',system:prod,affected:'',discovered:[]}; crawlRender(); }
-function crawlUpdate(){ const prod=CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT; CRAWL={mode:'update',step:1,product:prod,entry:'',label:'Release 2026.6',system:prod,affected:'/users\n/settings',discovered:[]}; crawlRender(); }
+function crawlFull(){ const prod=CURRENT_PRODUCT==='all'?(productNames()[0]||'Admin Cloud'):CURRENT_PRODUCT; CRAWL={mode:'full',step:1,product:prod,entry:(CRAWL_CANDIDATES[prod]||[['Home','/']])[0][1],label:'',system:prod,affected:'',discovered:[]}; crawlRender(); }
+function crawlUpdate(){ const prod=CURRENT_PRODUCT==='all'?(productNames()[0]||'Admin Cloud'):CURRENT_PRODUCT; CRAWL={mode:'update',step:1,product:prod,entry:'',label:'Release 2026.6',system:prod,affected:'/users\n/settings',discovered:[]}; crawlRender(); }
 function crawlRender(){ ({1:crawlStep1,2:crawlStep2,3:crawlStep3}[CRAWL.step])(); }
 function crawlStepper(){ const labels=CRAWL.mode==='full'?['Entry point','Crawl','Review & save']:['Update scope','Crawl affected','Review & save'];
   return `<div class="cap-steps">${labels.map((l,i)=>{const n=i+1;const cls=n<CRAWL.step?'done':(n===CRAWL.step?'active':'');return `<div class="cap-step ${cls}"><span class="cap-num">${n<CRAWL.step?'✓':n}</span>${l}</div>`;}).join('<span class="cap-arrow">→</span>')}</div>`; }
@@ -1625,9 +1643,9 @@ function aiQuickHTML(){
       <div class="card card-pad">
         <div class="section-title">1 · Test intent</div>
         <div class="field"><label>Describe what to test (natural language)</label>
-          <textarea id="intent">Verify that a valid Back Office user can log in and reach the Dashboard, and that an invalid password is rejected.</textarea></div>
+          <textarea id="intent">Verify that a valid Admin Cloud user can log in and reach the Dashboard, and that an invalid password is rejected.</textarea></div>
         <div class="row" style="gap:10px">
-          <div class="field" style="flex:1;margin:0"><label>Product</label><input value="Back Office" readonly></div>
+          <div class="field" style="flex:1;margin:0"><label>Product</label><input value="Admin Cloud" readonly></div>
           <div class="field" style="flex:1;margin:0"><label>Page</label><input value="PAGE-LOGIN" readonly></div>
         </div>
       </div>
@@ -1670,7 +1688,7 @@ function renderAIResult(){
   const caseJSON=`{
   <span class="f">"case_id"</span>: <span class="s">"BO-LOGIN-001"</span>,
   <span class="f">"title"</span>: <span class="s">"Valid user can log in successfully"</span>,
-  <span class="f">"product"</span>: <span class="s">"Back Office"</span>,
+  <span class="f">"product"</span>: <span class="s">"Admin Cloud"</span>,
   <span class="f">"module"</span>: <span class="s">"Authentication"</span>,
   <span class="f">"page"</span>: <span class="s">"Login"</span>,
   <span class="f">"priority"</span>: <span class="s">"High"</span>,
@@ -1827,7 +1845,7 @@ function gbBuildCase(){
   const pageObjs=[...new Set(valid.filter(s=>s.pageId).map(s=>s.pageId))].map(id=>DB.pages.find(p=>p.id===id)).filter(Boolean);
   const pageNames=pageObjs.map(p=>{const n=p.id.replace('PAGE-','');return n.charAt(0)+n.slice(1).toLowerCase();});
   let product, modules;
-  if(kind==='internal'){ product=GB.product||(pageObjs[0]&&pageObjs[0].product)||(productNames()[0]||'Back Office'); modules=GB.modules.slice(); }
+  if(kind==='internal'){ product=GB.product||(pageObjs[0]&&pageObjs[0].product)||(productNames()[0]||'Admin Cloud'); modules=GB.modules.slice(); }
   else { product='Cross-product'; modules=[...new Set(valid.map(s=>s.module).filter(Boolean))]; }
   const steps=valid.map(s=>{const pg=s.pageId&&DB.pages.find(p=>p.id===s.pageId);const tgt=pg&&pg.map&&pg.map[0]?pg.map[0][0]:(pg?pg.id:'—');const out={a:s.op||'(operation)',t:tgt,v:undefined,instr:s.instr||'',files:(s.files||[]).slice(),pageId:s.pageId||null}; if(kind==='cross-product'){out.product=s.product||''; out.module=s.module||'';} return out;});
   const intent=(GB.intent||'').trim();
@@ -1995,7 +2013,7 @@ function planWizard(p){
   const cs=(CURRENT_PRODUCT==='all'?DB.cases:DB.cases.filter(c=>c.product===CURRENT_PRODUCT)).filter(c=>c.status!=='manual');
   const sched=p&&p.schedule.enabled;
   openModal((p?'Edit':'New')+' test plan',`
-    <div class="field"><label>Plan name</label><input id="planName" value="${p?esc(p.name):''}" placeholder="e.g. Back Office — Smoke"></div>
+    <div class="field"><label>Plan name</label><input id="planName" value="${p?esc(p.name):''}" placeholder="e.g. Admin Cloud — Smoke"></div>
     <div class="field"><label>Description</label><input id="planDesc" value="${p?esc(p.desc):''}" placeholder="What this suite covers"></div>
     <div class="row" style="gap:12px">
       <div class="field" style="flex:1;margin-bottom:10px"><label>Environment</label><div class="select-wrap" style="width:100%"><select id="planEnv" style="width:100%">${['staging','qa','dev'].map(e=>`<option ${p&&p.env===e?'selected':''}>${e}</option>`).join('')}</select></div></div>
@@ -2019,7 +2037,7 @@ function savePlan(){
   const schedOn=$("#planSched").checked;
   const obj={
     name, desc:$("#planDesc").value.trim()||"—",
-    product:CURRENT_PRODUCT==='all'?'Back Office':CURRENT_PRODUCT,
+    product:CURRENT_PRODUCT==='all'?(productNames()[0]||'Admin Cloud'):CURRENT_PRODUCT,
     caseIds, env:$("#planEnv").value, worker:$("#planWorker").value,
     parallelism:4, retries:+$("#planRetries").value||0,
     schedule:{enabled:schedOn,freq:schedOn?$("#planFreq").value:null,next:schedOn?'2026-05-23 02:00':null}
